@@ -1,0 +1,22 @@
+host: ""
+port: 8317
+
+data-dir: "./data"
+logs-dir: "./logs"
+static-dir: "./static"
+
+remote-management:
+  allow-remote: false
+  secret-key: "123456"
+  disable-control-panel: false
+
+auth-dir: "~/.cli-proxy-api"
+api-keys:
+  - "your-api-key-1"
+
+usage:
+  enabled: true
+  db-path: "./data/usage.sqlite"
+  query-limit: 50000
+
+logging-to-file: false
