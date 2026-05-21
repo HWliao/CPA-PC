@@ -1,12 +1,15 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	pcconfig "github.com/HWliao/CPA-PC/internal/config"
 	"github.com/HWliao/CPA-PC/internal/httpapi"
+	pcstore "github.com/HWliao/CPA-PC/internal/store"
 	pcusage "github.com/HWliao/CPA-PC/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v6/sdk/api"
@@ -28,6 +31,13 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	if err := configureManagementStaticPath(cfg.Runtime.StaticDir); err != nil {
 		return nil, err
 	}
+	var usageStore *pcstore.Store
+	if cfg.Usage.Enabled {
+		usageStore, err = pcstore.Open(cfg.Runtime.UsageDBPath)
+		if err != nil {
+			return nil, fmt.Errorf("open usage store: %w", err)
+		}
+	}
 
 	info := httpapi.Info{
 		Version: opts.Version,
@@ -39,27 +49,54 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 			Enabled: cfg.Usage.Enabled,
 		},
 	}
+	var routeStore httpapi.UsageStore
+	if usageStore != nil {
+		routeStore = usageStore
+	}
 
 	service, err := cliproxy.NewBuilder().
 		WithConfig(cpaCfg).
 		WithConfigPath(cfg.Runtime.ConfigPath).
 		WithServerOptions(api.WithRouterConfigurator(func(engine *gin.Engine, _ *handlers.BaseAPIHandler, _ *cpaconfig.Config) {
-			httpapi.RegisterRoutes(engine, info)
+			httpapi.RegisterRoutesWithOptions(engine, httpapi.RouteOptions{
+				Info:          info,
+				Store:         routeStore,
+				Config:        cfg,
+				ManagementKey: cfg.RemoteManagement.SecretKey,
+				StartedAt:     time.Now(),
+			})
 		})).
 		Build()
 	if err != nil {
+		if usageStore != nil {
+			_ = usageStore.Close()
+		}
 		return nil, fmt.Errorf("build embedded CPA service: %w", err)
 	}
+	proxyService := ProxyService(service)
 
-	if cfg.Usage.Enabled {
+	if usageStore != nil {
 		writer := opts.Stdout
 		if writer == nil {
 			writer = os.Stdout
 		}
-		service.RegisterUsagePlugin(pcusage.NewLogPlugin(writer))
+		service.RegisterUsagePlugin(pcusage.NewPersistPlugin(usageStore, writer))
+		proxyService = &serviceWithStore{service: service, store: usageStore}
 	}
 
-	return service, nil
+	return proxyService, nil
+}
+
+type serviceWithStore struct {
+	service ProxyService
+	store   interface{ Close() error }
+}
+
+func (s *serviceWithStore) Run(ctx context.Context) error {
+	defer func() {
+		_ = s.store.Close()
+	}()
+	return s.service.Run(ctx)
 }
 
 func loadCPAConfig(cfg *pcconfig.Config) (*cpaconfig.Config, error) {

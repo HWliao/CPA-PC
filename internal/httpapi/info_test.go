@@ -1,11 +1,17 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	pcconfig "github.com/HWliao/CPA-PC/internal/config"
+	pcstore "github.com/HWliao/CPA-PC/internal/store"
+	"github.com/HWliao/CPA-PC/internal/usage"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,4 +48,370 @@ func TestRegisterRoutesServesInfo(t *testing.T) {
 	if !got.Usage.Enabled {
 		t.Fatal("Usage.Enabled = false, want true")
 	}
+}
+
+func TestRegisterRoutesServesUsageServiceInfo(t *testing.T) {
+	g := newTestRouter(nil)
+
+	rec := performRequest(g, http.MethodGet, "/usage-service/info", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["service"] != serviceID || got["mode"] != "embedded" || got["configured"] != true {
+		t.Fatalf("info = %#v", got)
+	}
+}
+
+func TestRegisterRoutesServesUsagePayload(t *testing.T) {
+	store := &fakeUsageStore{events: []usage.Event{{
+		Timestamp:   "2026-05-21T10:00:00Z",
+		Endpoint:    "SDK usage",
+		Model:       "gemini-test",
+		TotalTokens: 3,
+	}}}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload usage.Payload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.TotalRequests != 1 || payload.TotalTokens != 3 {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if store.limit != 123 {
+		t.Fatalf("limit = %d, want 123", store.limit)
+	}
+}
+
+func TestRegisterRoutesRejectsInvalidManagementKey(t *testing.T) {
+	g := newTestRouter(nil)
+
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage", "wrong")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRegisterRoutesServesStatus(t *testing.T) {
+	store := &fakeUsageStore{countEvents: 2, countDeadLetters: 1}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/status", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["events"] != float64(2) || got["deadLetters"] != float64(1) || got["service"] != serviceID {
+		t.Fatalf("status payload = %#v", got)
+	}
+}
+
+func TestRegisterRoutesPersistsManagerConfig(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+	body := []byte(`{"config":{"cpaConnection":{"cpaBaseUrl":"http://127.0.0.1:8317","managementKey":"secret"},"collector":{"collectorMode":"sdk-plugin","queue":"sdk-plugin","popSide":"none","batchSize":1,"queryLimit":42},"externalUsageService":{"enabled":false}}}`)
+
+	rec := performRequestWithBody(g, http.MethodPut, "/usage-service/config", "123456", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !store.hasManagerConfig || store.managerConfig.Collector.QueryLimit != 42 {
+		t.Fatalf("manager config not persisted: %#v", store.managerConfig)
+	}
+
+	rec = performRequest(g, http.MethodGet, "/usage-service/config", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got struct {
+		Config pcstore.ManagerConfig `json:"config"`
+		Source string                `json:"source"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != "db" || got.Config.CPAConnection.CPABaseURL != "http://127.0.0.1:8317" || got.Config.Collector.QueryLimit != 42 {
+		t.Fatalf("config response = %#v", got)
+	}
+}
+
+func TestRegisterRoutesSetupPersistsManagerConfig(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+	body := []byte(`{"cpaBaseUrl":"http://127.0.0.1:8317","managementKey":"123456","collectorMode":"sdk-plugin","queue":"sdk-plugin","popSide":"none","batchSize":1,"queryLimit":55,"requestMonitoringEnabled":true}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/setup", "", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !store.hasManagerConfig || store.managerConfig.CPAConnection.ManagementKey != "123456" || store.managerConfig.Collector.QueryLimit != 55 {
+		t.Fatalf("setup config = %#v", store.managerConfig)
+	}
+}
+
+func TestRegisterRoutesSetupRejectsInvalidManagementKey(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+	body := []byte(`{"cpaBaseUrl":"http://127.0.0.1:8317","managementKey":"wrong"}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/setup", "", body)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusUnauthorized, rec.Body.String())
+	}
+	if store.hasManagerConfig {
+		t.Fatalf("setup unexpectedly persisted: %#v", store.managerConfig)
+	}
+}
+
+func TestRegisterRoutesServesModelPrices(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+	body := []byte(`{"prices":{"gpt-test":{"prompt":1.25,"completion":2.5,"cache":0.1}}}`)
+
+	rec := performRequestWithBody(g, http.MethodPut, "/v0/management/model-prices", "123456", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	rec = performRequest(g, http.MethodGet, "/v0/management/model-prices", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got struct {
+		Prices map[string]pcstore.ModelPrice `json:"prices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	price := got.Prices["gpt-test"]
+	if price.Prompt != 1.25 || price.Completion != 2.5 || price.Cache != 0.1 {
+		t.Fatalf("prices = %#v", got.Prices)
+	}
+}
+
+func TestRegisterRoutesSyncModelPricesReturnsStoredPrices(t *testing.T) {
+	store := &fakeUsageStore{modelPrices: map[string]pcstore.ModelPrice{"gpt-test": {Prompt: 1}}}
+	g := newTestRouter(store)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/v0/management/model-prices/sync", "123456", []byte(`{}`))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Source   string                        `json:"source"`
+		Imported int                           `json:"imported"`
+		Skipped  int                           `json:"skipped"`
+		Prices   map[string]pcstore.ModelPrice `json:"prices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != "embedded" || got.Imported != 0 || got.Skipped != 0 || got.Prices["gpt-test"].Prompt != 1 {
+		t.Fatalf("sync response = %#v", got)
+	}
+}
+
+func TestRegisterRoutesServesAPIKeyAliases(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+	const hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	body := []byte(`{"items":[{"apiKeyHash":"` + hash + `","alias":"Team A"}]}`)
+
+	rec := performRequestWithBody(g, http.MethodPut, "/v0/management/api-key-aliases", "123456", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	rec = performRequest(g, http.MethodGet, "/v0/management/api-key-aliases", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got struct {
+		Items []pcstore.APIKeyAlias `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 1 || got.Items[0].APIKeyHash != hash || got.Items[0].Alias != "Team A" {
+		t.Fatalf("aliases = %#v", got.Items)
+	}
+
+	rec = performRequest(g, http.MethodDelete, "/v0/management/api-key-aliases/"+hash, "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if len(store.aliases) != 0 {
+		t.Fatalf("aliases after delete = %#v", store.aliases)
+	}
+}
+
+func TestRegisterRoutesExportsAndImportsUsageJSONL(t *testing.T) {
+	store := &fakeUsageStore{events: []usage.Event{{
+		RequestID:   "req-1",
+		EventHash:   "event-hash-1",
+		TimestampMS: 1_779_000_000_000,
+		Timestamp:   "2026-05-21T00:00:00Z",
+		Model:       "gemini-test",
+		Endpoint:    "SDK usage",
+		TotalTokens: 3,
+		CreatedAtMS: 1_779_000_000_001,
+	}}}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage/export", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if rec.Header().Get("Content-Type") != "application/x-ndjson" {
+		t.Fatalf("Content-Type = %q", rec.Header().Get("Content-Type"))
+	}
+
+	store.events = nil
+	rec = performRequestWithBody(g, http.MethodPost, "/v0/management/usage/import", "123456", rec.Body.Bytes())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Format  string `json:"format"`
+		Added   int    `json:"added"`
+		Skipped int    `json:"skipped"`
+		Total   int    `json:"total"`
+		Failed  int    `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Format != "usage_service_jsonl" || got.Added != 1 || got.Total != 1 || got.Failed != 0 || len(store.events) != 1 {
+		t.Fatalf("import response = %#v events=%#v", got, store.events)
+	}
+}
+
+func newTestRouter(store UsageStore) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	RegisterRoutesWithOptions(engine, RouteOptions{
+		Info:      Info{Version: "test", CPA: CPAInfo{Port: 8317}},
+		Store:     store,
+		StartedAt: time.UnixMilli(1_779_000_000_000),
+		Config: &pcconfig.Config{
+			Usage: pcconfig.Usage{Enabled: true, QueryLimit: 123},
+			Runtime: pcconfig.RuntimePaths{
+				UsageDBPath: "test.sqlite",
+			},
+		},
+		ManagementKey: "123456",
+	})
+	return engine
+}
+
+func performRequest(engine *gin.Engine, method string, path string, key string) *httptest.ResponseRecorder {
+	return performRequestWithBody(engine, method, path, key, nil)
+}
+
+func performRequestWithBody(engine *gin.Engine, method string, path string, key string, body []byte) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	if key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	return rec
+}
+
+type fakeUsageStore struct {
+	events           []usage.Event
+	limit            int
+	countEvents      int64
+	countDeadLetters int64
+	managerConfig    pcstore.ManagerConfig
+	hasManagerConfig bool
+	modelPrices      map[string]pcstore.ModelPrice
+	aliases          []pcstore.APIKeyAlias
+}
+
+func (s *fakeUsageStore) RecentEvents(_ context.Context, limit int) ([]usage.Event, error) {
+	s.limit = limit
+	return s.events, nil
+}
+
+func (s *fakeUsageStore) ExportEvents(context.Context) ([]usage.Event, error) {
+	return s.events, nil
+}
+
+func (s *fakeUsageStore) Counts(context.Context) (int64, int64, error) {
+	return s.countEvents, s.countDeadLetters, nil
+}
+
+func (s *fakeUsageStore) InsertEvents(_ context.Context, events []usage.Event) (usage.InsertResult, error) {
+	result := usage.InsertResult{}
+	seen := map[string]struct{}{}
+	for _, event := range s.events {
+		seen[event.EventHash] = struct{}{}
+	}
+	for _, event := range events {
+		if _, ok := seen[event.EventHash]; ok {
+			result.Skipped++
+			continue
+		}
+		seen[event.EventHash] = struct{}{}
+		s.events = append(s.events, event)
+		result.Inserted++
+	}
+	return result, nil
+}
+
+func (s *fakeUsageStore) LoadManagerConfig(context.Context) (pcstore.ManagerConfig, bool, error) {
+	return s.managerConfig, s.hasManagerConfig, nil
+}
+
+func (s *fakeUsageStore) SaveManagerConfig(_ context.Context, cfg pcstore.ManagerConfig) error {
+	s.managerConfig = cfg
+	s.hasManagerConfig = true
+	return nil
+}
+
+func (s *fakeUsageStore) LoadModelPrices(context.Context) (map[string]pcstore.ModelPrice, error) {
+	if s.modelPrices == nil {
+		return map[string]pcstore.ModelPrice{}, nil
+	}
+	return s.modelPrices, nil
+}
+
+func (s *fakeUsageStore) SaveModelPrices(_ context.Context, prices map[string]pcstore.ModelPrice) error {
+	s.modelPrices = prices
+	return nil
+}
+
+func (s *fakeUsageStore) LoadAPIKeyAliases(context.Context) ([]pcstore.APIKeyAlias, error) {
+	return s.aliases, nil
+}
+
+func (s *fakeUsageStore) UpsertAPIKeyAliases(_ context.Context, aliases []pcstore.APIKeyAlias) error {
+	s.aliases = aliases
+	return nil
+}
+
+func (s *fakeUsageStore) DeleteAPIKeyAlias(_ context.Context, apiKeyHash string) error {
+	remaining := s.aliases[:0]
+	for _, alias := range s.aliases {
+		if alias.APIKeyHash != apiKeyHash {
+			remaining = append(remaining, alias)
+		}
+	}
+	s.aliases = remaining
+	return nil
 }

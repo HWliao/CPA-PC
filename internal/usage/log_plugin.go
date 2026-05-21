@@ -12,8 +12,21 @@ type LogPlugin struct {
 	writer io.Writer
 }
 
+type EventStore interface {
+	InsertEvents(context.Context, []Event) (InsertResult, error)
+}
+
+type PersistPlugin struct {
+	store  EventStore
+	writer io.Writer
+}
+
 func NewLogPlugin(writer io.Writer) *LogPlugin {
 	return &LogPlugin{writer: writer}
+}
+
+func NewPersistPlugin(store EventStore, writer io.Writer) *PersistPlugin {
+	return &PersistPlugin{store: store, writer: writer}
 }
 
 func (p *LogPlugin) HandleUsage(_ context.Context, record sdkusage.Record) {
@@ -39,4 +52,22 @@ func (p *LogPlugin) HandleUsage(_ context.Context, record sdkusage.Record) {
 	)
 }
 
+func (p *PersistPlugin) HandleUsage(ctx context.Context, record sdkusage.Record) {
+	if p == nil || p.store == nil {
+		return
+	}
+	event := EventFromSDKRecord(record)
+	result, err := p.store.InsertEvents(ctx, []Event{event})
+	if err != nil {
+		if p.writer != nil {
+			fmt.Fprintf(p.writer, "usage persist failed: %v\n", err)
+		}
+		return
+	}
+	if p.writer != nil {
+		fmt.Fprintf(p.writer, "usage persisted inserted=%d skipped=%d event_hash=%q\n", result.Inserted, result.Skipped, event.EventHash)
+	}
+}
+
 var _ sdkusage.Plugin = (*LogPlugin)(nil)
+var _ sdkusage.Plugin = (*PersistPlugin)(nil)

@@ -3,6 +3,7 @@ package usage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -50,4 +51,51 @@ func TestLogPluginWritesUsageRecord(t *testing.T) {
 			t.Fatalf("log line = %q, want %s", line, want)
 		}
 	}
+}
+
+func TestPersistPluginWritesConvertedEvent(t *testing.T) {
+	store := &fakeEventStore{}
+	plugin := NewPersistPlugin(store, nil)
+	record := sdkusage.Record{
+		Provider:    "gemini",
+		Model:       "gemini-test",
+		APIKey:      "secret-api-key",
+		RequestedAt: time.Date(2026, 5, 21, 10, 30, 0, 0, time.UTC),
+		Detail:      sdkusage.Detail{InputTokens: 1, OutputTokens: 2, TotalTokens: 3},
+	}
+
+	plugin.HandleUsage(context.Background(), record)
+
+	if len(store.events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(store.events))
+	}
+	if store.events[0].Model != "gemini-test" || store.events[0].APIKeyHash == "" {
+		t.Fatalf("unexpected event: %#v", store.events[0])
+	}
+}
+
+func TestPersistPluginLogsStoreFailure(t *testing.T) {
+	wantErr := errors.New("insert failed")
+	store := &fakeEventStore{err: wantErr}
+	var output bytes.Buffer
+	plugin := NewPersistPlugin(store, &output)
+
+	plugin.HandleUsage(context.Background(), sdkusage.Record{Model: "m"})
+
+	if !strings.Contains(output.String(), wantErr.Error()) {
+		t.Fatalf("output = %q, want error", output.String())
+	}
+}
+
+type fakeEventStore struct {
+	events []Event
+	err    error
+}
+
+func (s *fakeEventStore) InsertEvents(_ context.Context, events []Event) (InsertResult, error) {
+	if s.err != nil {
+		return InsertResult{}, s.err
+	}
+	s.events = append(s.events, events...)
+	return InsertResult{Inserted: len(events)}, nil
 }
