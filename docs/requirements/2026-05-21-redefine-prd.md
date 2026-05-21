@@ -147,28 +147,28 @@ cpa-pc_<version>_windows_amd64/
 推荐默认配置：
 
 ```yaml
-host: "127.0.0.1"
+host: ""
 port: 8317
 
 remote-management:
   allow-remote: false
   secret-key: "123456"
-  disable-control-panel: true
+  disable-control-panel: false
 
-auth-dir: "./data/auths"
+auth-dir: "~/.cli-proxy-api"
 api-keys:
-  - "change-me"
+  - "your-api-key-1"
 
 usage:
   enabled: true
   db-path: "./data/usage.sqlite"
   query-limit: 50000
 
-logging-to-file: true
+logging-to-file: false
 ```
 
-说明：`remote-management.disable-control-panel: true` 是为了避免 CPA SDK 自身尝试下载原 CPA 管理面板，由 CPA-PC 自己托管复用后的 CPA-Manager 页面。
-说明：默认 Management Key 保留 CPA 原始逻辑；如果 CPA 原始逻辑没有可复用默认值，则使用 `123456`。
+说明：除默认 Management Key 使用 CPA-PC 自有默认值 `123456` 外，CPA 原生配置默认值保持和 CLIProxyAPI 一致。
+说明：`remote-management.disable-control-panel: false` 让 CPA SDK 继续托管 `/management.html`；CPA-PC 发布包提供外置 `static/management.html`，避免重复注册 Gin 路由。
 
 ## HTTP 接口边界
 

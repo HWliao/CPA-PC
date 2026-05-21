@@ -36,8 +36,7 @@ CLIProxyAPI SDK already registers `GET /management.html` during default route se
 Preferred phase-1 approach:
 
 - Serve `static/management.html` through CPA SDK's existing management page mechanism.
-- Keep `remote-management.disable-control-panel` enabled only if testing proves CPA-PC can safely provide another `/management.html` route.
-- Otherwise use `disable-control-panel: false`, ensure `static/management.html` exists, and prevent unwanted automatic panel updates through config or runtime setup.
+- Keep `remote-management.disable-control-panel: false`, ensure `static/management.html` exists, and avoid duplicate `/management.html` route registration.
 
 This is a phase-1 validation item because it can affect the approved config example.
 
@@ -107,7 +106,7 @@ Use the concrete scripts/package commands that exist after frontend migration; u
 
 - `config.example.yaml` exists at repo root.
 - Default runtime paths are relative to the executable/config directory.
-- Default host is `127.0.0.1` and port is `8317`.
+- Default host and port follow CLIProxyAPI defaults: host is `""` and port is `8317`.
 - Default Management Key behavior is documented and implemented as agreed.
 - Usage DB defaults to `./data/usage.sqlite`.
 
@@ -194,7 +193,7 @@ Use the concrete scripts/package commands that exist after frontend migration; u
 
 - A placeholder `static/management.html` can be served at `GET /management.html`.
 - The serving strategy does not trigger unwanted remote panel download during normal release layout.
-- If the PRD config example must change from `disable-control-panel: true`, update the PRD and config example together.
+- PRD and `config.example.yaml` agree on `disable-control-panel: false`, so CPA SDK serves the external `static/management.html`.
 
 **Verification:**
 
