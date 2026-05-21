@@ -1,0 +1,82 @@
+[
+  {
+    "query": "当前分支是 dev_20260420_ops-rd_5120，我把签收接口加了失败重试，还顺手补了注释，帮我按 imile 的 git commit 规范给一条 commit message。",
+    "should_trigger": true
+  },
+  {
+    "query": "我现在写的是 `feat: 调整路由逻辑`，但感觉太泛了。分支是 dev_20260418_ops-rd_4881，实际改动是把路由白名单拆成按租户配置，帮我 review 并改写成合规 commit message。",
+    "should_trigger": true
+  },
+  {
+    "query": "需求号是 ops-rd_6003，这次只是补了 README 和类注释，没有可用 branch 名。请直接给我一条合规提交信息。",
+    "should_trigger": true
+  },
+  {
+    "query": "当前分支 hotfix_login-timeout 修了登录超时重试，需求 ID 提不出来。按你们的 git comment 规范，这条 commit 该怎么写？",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我解释一下为什么 `[ops-rd_9012] chore: 调整库存同步` 不如 `[ops-rd_9012] feat: 新增库存同步重试`，然后给出最终推荐版本。",
+    "should_trigger": true
+  },
+  {
+    "query": "我想把现在这条 `fix(order): 修复订单导出` 规范化，你们要求不是 scope 风格。分支名是 dev_20260412_ops-rd_4311。",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我直接生成一条 commit comment：这次给运单列表加了批量打印能力，branch 是 dev_20260420_ops-rd_7788。",
+    "should_trigger": true
+  },
+  {
+    "query": "这次主要改动是拆分支付回调配置，顺手删了两段过时代码，我只要一条推荐的 commit message。分支是 dev_20260420_ops-rd_8123。",
+    "should_trigger": true
+  },
+  {
+    "query": "请检查这条提交是否合规：`docs: 更新揽收接口说明`。实际变更是新增揽收接口签名校验，分支是 dev_20260421_ops-rd_8450。",
+    "should_trigger": true
+  },
+  {
+    "query": "我给你 branch 名和改动，你只输出一条提交信息，不要执行 git 命令：branch=dev_20260421_ops-rd_9001，改动=给订单同步任务增加补偿开关。",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我执行 `git commit -m \"[ops-rd_5120] feat: 新增签收失败重试\"`，然后 push 到当前分支。",
+    "should_trigger": false
+  },
+  {
+    "query": "我想看最近 10 条 commit message 的风格，帮我分析一下这个仓库平时的提交习惯。",
+    "should_trigger": false
+  },
+  {
+    "query": "解释一下 `git commit --amend` 和 `git rebase -i` 的区别，我老是记不住。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我写一份 release note，内容来自这个 sprint 的 12 个 commit。",
+    "should_trigger": false
+  },
+  {
+    "query": "我需要一个 branch name，不是 commit message。需求是给登录接口加验证码。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我 review 这条 PR 标题 `feat: support export` 是否合适，准备发给 reviewer。",
+    "should_trigger": false
+  },
+  {
+    "query": "我已经写好 commit message 了，帮我创建 commit 并推到远程，遇到冲突再说。",
+    "should_trigger": false
+  },
+  {
+    "query": "请把这段改动整理成 changelog 条目：新增分页导出、修复登录空指针、补 README。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我从 git diff 里总结改动点，我要发到群里，不是用作 commit。",
+    "should_trigger": false
+  },
+  {
+    "query": "这个仓库的 commitlint 一直报 scope 缺失，帮我看下配置哪里有问题。",
+    "should_trigger": false
+  }
+]

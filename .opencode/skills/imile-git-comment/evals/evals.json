@@ -1,0 +1,65 @@
+{
+  "skill_name": "imile-git-comment",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "当前分支名是 dev_20260410_ops-rd_1022。这次改动是给登录接口增加登录验证，并补了后端注释。请按 imile-git-comment 规范给我推荐一条 commit message，并说明为什么不是 docs。",
+      "expected_output": "技能应能正确提取需求 ID，选择 feat 作为主 action，并把注释识别为次要改动。",
+      "files": [],
+      "expectations": [
+        "提交信息使用 [ops-rd_1022] 作为需求 ID 前缀",
+        "动作词选择 feat，而不是因为补注释就改成 docs",
+        "修改内容应围绕登录验证这一核心交付目的",
+        "输出格式不应使用 scope，如 feat(login):"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "当前分支名是 hotfix_login-null-pointer。这次改动是修复空指针导致的登录失败。请按规范输出 commit message。如果需求 ID 无法稳定提取，按规范处理。",
+      "expected_output": "技能应在无法稳定提取需求 ID 时去掉方括号，并使用 fix 作为动作词。",
+      "files": [],
+      "expectations": [
+        "提交信息不应保留空的 [] 前缀",
+        "动作词使用 fix",
+        "修改内容应明确表达修复登录空指针或等价业务结果",
+        "输出格式不应使用 scope，如 fix(login):"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "分支名是 dev_20260410_ops-rd_2048。我现在写了一条提交信息 `feat: 调整订单同步逻辑`。请按 imile-git-comment 帮我 review，指出是否合规，并给出更合适的版本。这次主要改动其实是拆分订单同步配置，顺便清理了注释。",
+      "expected_output": "技能应把当前标题判为不够合规，指出需求 ID 缺失与修改内容过泛，并给出更贴合主改动目的的修正版。",
+      "files": [],
+      "expectations": [
+        "指出原始标题缺少 [ops-rd_2048] 需求 ID 前缀",
+        "指出“调整订单同步逻辑”过于宽泛，未准确概括主改动",
+        "给出一条更合适的修正版，例如 [ops-rd_2048] chore: 拆分订单同步配置",
+        "修正版应使用允许的 action，不应使用 refactor 或 scope 格式"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "需求 ID 是 ops-rd_3001。这次改动是给运单查询接口新增分页导出能力，并补了两处接口说明。没有可用分支名。请按 imile-git-comment 规范直接给我一条 commit message。",
+      "expected_output": "技能应在没有分支名时直接使用用户给出的需求 ID，并以 feat 生成提交信息。",
+      "files": [],
+      "expectations": [
+        "提交信息使用 [ops-rd_3001] 作为需求 ID 前缀",
+        "动作词使用 feat",
+        "修改内容应围绕新增分页导出能力这一核心改动",
+        "输出格式不应使用 scope，如 feat(export):"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "当前分支名是 dev_20260410_ops-rd_4002。这次改动没有改业务逻辑，只是补充了订单同步任务的类注释和 README 说明。请按 imile-git-comment 规范给我推荐一条 commit message。",
+      "expected_output": "技能应识别这是纯文档/注释更新，输出 docs 类型提交信息。",
+      "files": [],
+      "expectations": [
+        "提交信息使用 [ops-rd_4002] 作为需求 ID 前缀",
+        "动作词使用 docs",
+        "修改内容应围绕补充订单同步任务说明或注释，不应误写成 feat/fix/chore",
+        "输出格式不应使用 scope，如 docs(order-sync):"
+      ]
+    }
+  ]
+}
