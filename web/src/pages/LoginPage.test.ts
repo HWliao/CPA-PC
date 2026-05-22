@@ -40,4 +40,12 @@ describe('resolveUsageServiceLoginMode', () => {
       usageServiceNeedsSetup: true,
     });
   });
+
+  it('detects embedded CPA-PC hosted panels', () => {
+    expect(resolveUsageServiceLoginMode({ service: 'cpa-pc', mode: 'embedded', configured: true })).toEqual({
+      hostedByUsageService: true,
+      embeddedUsageService: true,
+      usageServiceNeedsSetup: false,
+    });
+  });
 });

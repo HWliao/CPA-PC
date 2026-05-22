@@ -79,8 +79,8 @@ func TestRegisterRoutesUsageServiceInfoUsesStoredSetupState(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["configured"] != false {
-		t.Fatalf("configured = %#v, want false", got["configured"])
+	if got["configured"] != true {
+		t.Fatalf("configured = %#v, want true", got["configured"])
 	}
 
 	store.managerConfig = pcstore.ManagerConfig{CPAConnection: pcstore.ManagerCPAConnectionConfig{CPABaseURL: "http://127.0.0.1:8317", ManagementKey: "123456"}}
@@ -94,6 +94,27 @@ func TestRegisterRoutesUsageServiceInfoUsesStoredSetupState(t *testing.T) {
 	}
 	if got["configured"] != true {
 		t.Fatalf("configured = %#v, want true", got["configured"])
+	}
+}
+
+func TestRegisterRoutesUsageServiceInfoReportsUnconfiguredWithoutEmbeddedConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	RegisterRoutesWithOptions(engine, RouteOptions{
+		Info:  Info{Version: "test", CPA: CPAInfo{Port: 8317}},
+		Store: &fakeUsageStore{},
+	})
+
+	rec := performRequest(engine, http.MethodGet, "/usage-service/info", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["configured"] != false {
+		t.Fatalf("configured = %#v, want false", got["configured"])
 	}
 }
 
@@ -247,6 +268,34 @@ func TestRegisterRoutesPersistsManagerConfig(t *testing.T) {
 	}
 	if got.Source != "db" || got.Config.CPAConnection.CPABaseURL != "http://127.0.0.1:8317" || got.Config.Collector.QueryLimit != 42 {
 		t.Fatalf("config response = %#v", got)
+	}
+}
+
+func TestRegisterRoutesManagerConfigIncludesEmbeddedUsageStatus(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/usage-service/config", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Config pcstore.ManagerConfig `json:"config"`
+		Source string                `json:"source"`
+		CPAUsage struct {
+			UsageStatisticsEnabled          bool `json:"usageStatisticsEnabled"`
+			RedisUsageQueueRetentionSeconds int  `json:"redisUsageQueueRetentionSeconds"`
+			RetentionSourceDefault          bool `json:"retentionSourceDefault"`
+		} `json:"cpaUsage"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != "embedded" || got.Config.Collector.Enabled == nil || !*got.Config.Collector.Enabled {
+		t.Fatalf("manager config = %#v", got)
+	}
+	if !got.CPAUsage.UsageStatisticsEnabled || got.CPAUsage.RedisUsageQueueRetentionSeconds != 60 || !got.CPAUsage.RetentionSourceDefault {
+		t.Fatalf("cpa usage = %#v", got.CPAUsage)
 	}
 }
 

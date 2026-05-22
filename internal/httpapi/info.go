@@ -50,6 +50,12 @@ type UsageInfo struct {
 	QueryLimit int    `json:"queryLimit,omitempty"`
 }
 
+type CPAUsageConfig struct {
+	UsageStatisticsEnabled          bool `json:"usageStatisticsEnabled"`
+	RedisUsageQueueRetentionSeconds int  `json:"redisUsageQueueRetentionSeconds"`
+	RetentionSourceDefault          bool `json:"retentionSourceDefault"`
+}
+
 type UsageStore interface {
 	RecentEvents(ctx context.Context, limit int) ([]usage.Event, error)
 	ExportEvents(ctx context.Context) ([]usage.Event, error)
@@ -484,24 +490,37 @@ func usageServiceConfigured(ctx context.Context, store UsageStore, fallback bool
 		return false, err
 	}
 	if !ok {
-		return false, nil
+		return fallback, nil
 	}
 	return strings.TrimSpace(cfg.CPAConnection.CPABaseURL) != "" && strings.TrimSpace(cfg.CPAConnection.ManagementKey) != "", nil
 }
 
 func managerConfigResponse(ctx context.Context, store UsageStore, cfg *pcconfig.Config) (gin.H, error) {
 	defaultConfig := defaultManagerConfig(cfg)
+	cpaUsage := embeddedCPAUsageConfig(cfg)
 	if store == nil {
-		return gin.H{"config": defaultConfig, "source": "embedded"}, nil
+		return gin.H{"config": defaultConfig, "source": "embedded", "cpaUsage": cpaUsage}, nil
 	}
 	stored, ok, err := store.LoadManagerConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return gin.H{"config": defaultConfig, "source": "embedded"}, nil
+		return gin.H{"config": defaultConfig, "source": "embedded", "cpaUsage": cpaUsage}, nil
 	}
-	return gin.H{"config": mergeManagerConfig(defaultConfig, stored), "source": "db"}, nil
+	return gin.H{"config": mergeManagerConfig(defaultConfig, stored), "source": "db", "cpaUsage": cpaUsage}, nil
+}
+
+func embeddedCPAUsageConfig(cfg *pcconfig.Config) CPAUsageConfig {
+	enabled := false
+	if cfg != nil {
+		enabled = cfg.Usage.Enabled
+	}
+	return CPAUsageConfig{
+		UsageStatisticsEnabled:          enabled,
+		RedisUsageQueueRetentionSeconds: 60,
+		RetentionSourceDefault:          true,
+	}
 }
 
 func defaultManagerConfig(cfg *pcconfig.Config) pcstore.ManagerConfig {

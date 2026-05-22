@@ -2077,6 +2077,10 @@ export function MonitoringCenterPage() {
   const combinedError = monitoringUnavailable
     ? monitoringError
     : [usageError, monitoringError].filter(Boolean).join('；');
+  const showUsageDisabledCallout =
+    !requestMonitoringAvailability.checking &&
+    !requestMonitoringAvailability.available &&
+    !config?.usageStatisticsEnabled;
   const hasPrices = Object.keys(modelPrices).length > 0;
 
   useEffect(() => {
@@ -3241,7 +3245,7 @@ export function MonitoringCenterPage() {
         </div>
 
         {combinedError ? <div className={styles.errorBox}>{combinedError}</div> : null}
-        {!config?.usageStatisticsEnabled ? (
+        {showUsageDisabledCallout ? (
           <div className={styles.callout}>
             <strong>{t('monitoring.usage_disabled_title')}</strong>
             <span>{t('monitoring.usage_disabled_body')}</span>

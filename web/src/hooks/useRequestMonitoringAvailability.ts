@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   isUsageServiceId,
   normalizeUsageServiceBase,
+  type UsageServiceInfo,
   usageServiceApi,
 } from '@/services/api/usageService';
 import { useAuthStore, useUsageServiceStore } from '@/stores';
@@ -18,6 +19,31 @@ export interface RequestMonitoringAvailability {
   available: boolean;
   serviceBase: string;
   reason: RequestMonitoringUnavailableReason | '';
+}
+
+interface RequestMonitoringStateInput {
+  info?: UsageServiceInfo | null;
+  collectorEnabled: boolean;
+  hasCPAConnection: boolean;
+  cpaUsageEnabled?: boolean;
+}
+
+export function resolveRequestMonitoringState({
+  info,
+  collectorEnabled,
+  hasCPAConnection,
+  cpaUsageEnabled,
+}: RequestMonitoringStateInput): Pick<RequestMonitoringAvailability, 'available' | 'reason'> {
+  const embeddedConfigured = info?.mode === 'embedded' && info.configured === true;
+  const cpaUsageAvailable = cpaUsageEnabled !== false || embeddedConfigured;
+
+  if (!collectorEnabled || !cpaUsageAvailable) {
+    return { available: false, reason: 'monitoring_disabled' };
+  }
+  if (hasCPAConnection || embeddedConfigured) {
+    return { available: true, reason: '' };
+  }
+  return { available: false, reason: 'service_not_configured' };
 }
 
 export function useRequestMonitoringAvailability(): RequestMonitoringAvailability {
@@ -49,6 +75,8 @@ export function useRequestMonitoringAvailability(): RequestMonitoringAvailabilit
 
   useEffect(() => {
     let cancelled = false;
+    // Read revision so explicit Usage Service config updates retrigger detection.
+    void usageServiceRevision;
 
     const detect = async () => {
       if (!managementKey || candidates.length === 0) {
@@ -76,16 +104,18 @@ export function useRequestMonitoringAvailability(): RequestMonitoringAvailabilit
             response.config.cpaConnection?.cpaBaseUrl &&
               response.config.cpaConnection?.managementKey
           );
+          const resolved = resolveRequestMonitoringState({
+            info,
+            collectorEnabled,
+            hasCPAConnection,
+            cpaUsageEnabled: response.cpaUsage?.usageStatisticsEnabled,
+          });
           if (cancelled) return;
           setState({
             checking: false,
-            available: collectorEnabled && hasCPAConnection,
+            available: resolved.available,
             serviceBase: candidate,
-            reason: !collectorEnabled
-              ? 'monitoring_disabled'
-              : hasCPAConnection
-                ? ''
-                : 'service_not_configured',
+            reason: resolved.reason,
           });
           return;
         } catch {
