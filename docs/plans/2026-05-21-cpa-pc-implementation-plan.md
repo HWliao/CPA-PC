@@ -62,7 +62,7 @@ These commands become available as the project is created:
 - Go tests: `go test ./...`
 - Go build: `go build ./cmd/cpa-pc`
 - Windows amd64 build: `$env:GOOS='windows'; $env:GOARCH='amd64'; go build -o dist/cpa-pc.exe ./cmd/cpa-pc`
-- Windows amd64 package: `pwsh -File scripts/package-windows.ps1 -Version dev`
+- Windows amd64 package: `npm run package:windows -- --version dev`
 - Frontend install: `npm install`
 - Frontend tests: `npm test -- --run`
 - Frontend build: `npm run build`

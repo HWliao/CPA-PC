@@ -1,0 +1,14 @@
+{
+  "name": "cpa-pc",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build:web": "npm --prefix web run build",
+    "package:windows": "node -r tsm scripts/package-windows.ts",
+    "package:windows:full": "npm run package:windows -- --build-frontend"
+  },
+  "devDependencies": {
+    "tsm": "^2.3.0"
+  }
+}

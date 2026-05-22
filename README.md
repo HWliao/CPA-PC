@@ -40,15 +40,16 @@ cpa-pc_<version>_windows_amd64/
 
 构建发布目录:
 
-```powershell
-pwsh -File scripts/package-windows.ps1 -Version dev
+```bash
+npm install
+npm run package:windows -- --version dev
 ```
 
-如果需要同时重新生成 `static/management.html`, 先安装前端依赖, 再加 `-BuildFrontend`:
+如果需要同时重新生成 `static/management.html`, 先安装前端依赖, 再传入 `--build-frontend`:
 
-```powershell
+```bash
 npm --prefix web ci
-pwsh -File scripts/package-windows.ps1 -Version dev -BuildFrontend
+npm run package:windows -- --version dev --build-frontend
 ```
 
 运行发布目录:
