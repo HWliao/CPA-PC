@@ -151,12 +151,100 @@ func TestRegisterRoutesServesUsagePayload(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesServesUsageCharts(t *testing.T) {
+	store := &fakeUsageStore{charts: usage.ChartsResponse{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		StartMS:     1_779_000_000_000,
+		EndMS:       1_779_003_600_000,
+		BucketMS:    int64(time.Hour / time.Millisecond),
+		Global: usage.ChartBucketGroup{Buckets: []usage.ChartMetricBucket{{
+			StartMS:      1_779_000_000_000,
+			EndMS:        1_779_003_600_000,
+			Label:        "10:00",
+			InputTokens:  1000,
+			OutputTokens: 500,
+			CachedTokens: 200,
+			TotalCost:    0.0038,
+			TPMInput:     1000.0 / 60.0,
+			TPMOutput:    500.0 / 60.0,
+			TPMCached:    200.0 / 60.0,
+		}},
+		},
+	}}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=hour", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload usage.ChartsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularityHour {
+		t.Fatalf("payload range/granularity = %#v", payload)
+	}
+	if len(payload.Global.Buckets) != 1 || payload.Global.Buckets[0].InputTokens != 1000 {
+		t.Fatalf("payload global = %#v", payload.Global)
+	}
+	if store.chartQuery.Range != usage.ChartRange1H || store.chartQuery.Granularity != usage.ChartGranularityHour {
+		t.Fatalf("chart query = %#v", store.chartQuery)
+	}
+}
+
+func TestRegisterRoutesServesEmptyUsageChartsWithoutStore(t *testing.T) {
+	g := newTestRouter(nil)
+
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload usage.ChartsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularityHour {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if len(payload.Global.Buckets) != 1 {
+		t.Fatalf("len(global buckets) = %d, want 1", len(payload.Global.Buckets))
+	}
+}
+
+func TestRegisterRoutesRejectsInvalidUsageChartsQuery(t *testing.T) {
+	g := newTestRouter(&fakeUsageStore{})
+
+	for _, path := range []string{
+		"/v0/management/usage/charts?range=2h",
+		"/v0/management/usage/charts?granularity=minute",
+	} {
+		t.Run(path, func(t *testing.T) {
+			rec := performRequest(g, http.MethodGet, path, "123456")
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["code"] != "request_failed" {
+				t.Fatalf("payload = %#v", payload)
+			}
+		})
+	}
+}
+
 func TestRegisterRoutesRejectsInvalidManagementKey(t *testing.T) {
 	g := newTestRouter(nil)
 
-	rec := performRequest(g, http.MethodGet, "/v0/management/usage", "wrong")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	for _, path := range []string{"/v0/management/usage", "/v0/management/usage/charts"} {
+		t.Run(path, func(t *testing.T) {
+			rec := performRequest(g, http.MethodGet, path, "wrong")
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+			}
+		})
 	}
 }
 
@@ -180,6 +268,7 @@ func TestProtectedUsageServiceRoutesAcceptBcryptHashedManagementKey(t *testing.T
 		body   []byte
 	}{
 		{name: "usage", method: http.MethodGet, path: "/v0/management/usage"},
+		{name: "usage charts", method: http.MethodGet, path: "/v0/management/usage/charts"},
 		{name: "usage export", method: http.MethodGet, path: "/v0/management/usage/export"},
 		{name: "usage import", method: http.MethodPost, path: "/v0/management/usage/import", body: []byte(`{"event_hash":"imported-hash","timestamp_ms":1779000000000,"timestamp":"2026-05-21T00:00:00Z","model":"gemini-test","endpoint":"SDK usage","total_tokens":1,"created_at_ms":1779000000001}`)},
 		{name: "model prices", method: http.MethodGet, path: "/v0/management/model-prices"},
@@ -520,11 +609,21 @@ type fakeUsageStore struct {
 	hasManagerConfig bool
 	modelPrices      map[string]pcstore.ModelPrice
 	aliases          []pcstore.APIKeyAlias
+	charts           usage.ChartsResponse
+	chartQuery       usage.ChartQuery
 }
 
 func (s *fakeUsageStore) RecentEvents(_ context.Context, limit int) ([]usage.Event, error) {
 	s.limit = limit
 	return s.events, nil
+}
+
+func (s *fakeUsageStore) UsageCharts(_ context.Context, query usage.ChartQuery) (usage.ChartsResponse, error) {
+	s.chartQuery = query
+	if s.charts.Range == "" {
+		return usage.EmptyChartsResponse(query), nil
+	}
+	return s.charts, nil
 }
 
 func (s *fakeUsageStore) ExportEvents(context.Context) ([]usage.Event, error) {

@@ -64,6 +64,7 @@ type CPAUsageConfig struct {
 
 type UsageStore interface {
 	RecentEvents(ctx context.Context, limit int) ([]usage.Event, error)
+	UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.ChartsResponse, error)
 	ExportEvents(ctx context.Context) ([]usage.Event, error)
 	InsertEvents(ctx context.Context, events []usage.Event) (usage.InsertResult, error)
 	Counts(ctx context.Context) (events int64, deadLetters int64, err error)
@@ -181,6 +182,26 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 			return
 		}
 		c.JSON(http.StatusOK, usage.BuildPayload(events))
+	})
+	engine.GET("/v0/management/usage/charts", func(c *gin.Context) {
+		if !protected(c) {
+			return
+		}
+		query, err := usage.ParseChartQuery(c.Request.URL.Query())
+		if err != nil {
+			writeAPIError(c, http.StatusBadRequest, "request_failed", err.Error())
+			return
+		}
+		if opts.Store == nil {
+			c.JSON(http.StatusOK, usage.EmptyChartsResponse(query))
+			return
+		}
+		charts, err := opts.Store.UsageCharts(c.Request.Context(), query)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load usage charts"})
+			return
+		}
+		c.JSON(http.StatusOK, charts)
 	})
 	engine.GET("/v0/management/usage/export", func(c *gin.Context) {
 		if !protected(c) {

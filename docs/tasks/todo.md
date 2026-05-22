@@ -7,15 +7,15 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Add the backend contract, validation, protected route, and store aggregation needed for global chart buckets. This creates one complete read path for global token, cost, and TPM charts using local SQLite.
 
 **Acceptance criteria:**
-- [ ] `GET /v0/management/usage/charts` accepts `range=1h|5h|24h|7d` and `granularity=hour|day`.
-- [ ] Authorized requests return `global.buckets` with `inputTokens`, `outputTokens`, `cachedTokens`, `totalCost`, `tpmInput`, `tpmOutput`, and `tpmCached`.
-- [ ] Nil or empty store returns a valid empty chart response with buckets and empty series.
-- [ ] Existing `/v0/management/usage` response and behavior are unchanged.
+- [x] `GET /v0/management/usage/charts` accepts `range=1h|5h|24h|7d` and `granularity=hour|day`.
+- [x] Authorized requests return `global.buckets` with `inputTokens`, `outputTokens`, `cachedTokens`, `totalCost`, `tpmInput`, `tpmOutput`, and `tpmCached`.
+- [x] Nil or empty store returns a valid empty chart response with buckets and empty series.
+- [x] Existing `/v0/management/usage` response and behavior are unchanged.
 
 **Verification:**
-- [ ] Tests pass: `go test ./internal/usage ./internal/store ./internal/httpapi`.
-- [ ] Route tests cover valid auth, invalid auth, invalid `range`, invalid `granularity`, and nil store.
-- [ ] Store tests cover fixed-range bucket generation, cost calculation, and TPM for partial buckets.
+- [x] Tests pass: `go test ./internal/usage ./internal/store ./internal/httpapi`.
+- [x] Route tests cover valid auth, invalid auth, invalid `range`, invalid `granularity`, and nil store.
+- [x] Store tests cover fixed-range bucket generation, cost calculation, and TPM for partial buckets.
 
 **Dependencies:** None.
 
