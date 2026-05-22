@@ -126,6 +126,8 @@ function main(): void {
   const packagePath = path.join(repoRoot, options.outputRoot, `cpa-pc_${safeVersion}_windows_amd64`);
   const staticSource = path.join(repoRoot, 'static', 'management.html');
   const configSource = path.join(repoRoot, 'config.example.yaml');
+  const windowsScriptsSource = path.join(repoRoot, 'scripts', 'win');
+  const windowsScriptFiles = ['manage-cpa-pc.ps1', 'start-cpa-pc.vbs'];
 
   if (options.buildFrontend) {
     runNpm(['--prefix', path.join(repoRoot, 'web'), 'run', 'build'], {
@@ -140,6 +142,12 @@ function main(): void {
 
   if (!existsSync(configSource)) {
     throw new Error('config.example.yaml not found');
+  }
+
+  for (const fileName of windowsScriptFiles) {
+    if (!existsSync(path.join(windowsScriptsSource, fileName))) {
+      throw new Error(`scripts/win/${fileName} not found`);
+    }
   }
 
   if (existsSync(packagePath)) {
@@ -175,6 +183,10 @@ function main(): void {
 
   copyFileSync(configSource, path.join(packagePath, 'config.example.yaml'));
   copyFileSync(staticSource, path.join(staticTargetDir, 'management.html'));
+
+  for (const fileName of windowsScriptFiles) {
+    copyFileSync(path.join(windowsScriptsSource, fileName), path.join(packagePath, fileName));
+  }
 
   for (const optionalFile of ['README.md', 'LICENSE']) {
     const source = path.join(repoRoot, optionalFile);

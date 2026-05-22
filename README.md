@@ -27,6 +27,8 @@ Windows amd64 发布目录结构:
 ```text
 cpa-pc_<version>_windows_amd64/
   cpa-pc.exe
+  manage-cpa-pc.ps1
+  start-cpa-pc.vbs
   config.example.yaml
   static/
     management.html
