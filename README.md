@@ -1,14 +1,96 @@
 # CPA-PC
 
-CLI Proxy API 这个项目目前专注于底层转发, 但是对于上层应用支持非常有限, 特别是近期它直接去除了监控统计功能, 改成更底层的基础监控, 同时官方推荐的方案是部署额外的监控(管理)应用来完成额外的, 导致在个人PC上使用体验大幅下降.
+CPA-PC 是面向个人 Windows PC 的 CLI Proxy API 单体应用。它通过 CLIProxyAPI SDK 嵌入代理服务, 在同一个进程内提供本地 SQLite usage 存储和管理页面。
 
-为了解决以上问题, 同时改善个人PC上使用CPA的体验:
-1. 提供一站式安装包
-2. 提供个人PC管理脚本
-3. 使用CPA SDK方式集成
-4. 集成SQLlite持久化监控数据
-5. 提供management.html页面
+CPA-PC 当前目标:
 
-# 注意事项
+- 提供 Windows amd64 可运行包。
+- 使用 CLIProxyAPI SDK 集成, 不通过脚本启动独立 `CLIProxyAPI.exe`。
+- 内置 CPA-Manager 兼容 usage API, 不启动独立 CPA-Manager 服务。
+- 使用 `data/usage.sqlite` 持久化监控数据。
+- 通过外置 `static/management.html` 提供管理页面。
 
-本项目所有代码均采用AI生成,且对代码未做严格review(本人对golang一窍不通),请勿在生产环境使用!!
+CPA-PC 当前不是:
+
+- 生产环境方案。
+- 多进程编排器或脚本启动器。
+- CPA-Manager 后端的运行时依赖。
+
+## 注意事项
+
+本项目代码主要由 AI 生成, 尚未经过严格人工 review, 请勿在生产环境使用。
+
+## Release Layout
+
+Windows amd64 发布目录结构:
+
+```text
+cpa-pc_<version>_windows_amd64/
+  cpa-pc.exe
+  config.example.yaml
+  static/
+    management.html
+  data/
+  logs/
+```
+
+`README.md` 和 `LICENSE` 会在存在时一并复制到发布目录。
+
+## Quick Start
+
+构建发布目录:
+
+```powershell
+pwsh -File scripts/package-windows.ps1 -Version dev
+```
+
+如果需要同时重新生成 `static/management.html`, 先安装前端依赖, 再加 `-BuildFrontend`:
+
+```powershell
+npm --prefix web ci
+pwsh -File scripts/package-windows.ps1 -Version dev -BuildFrontend
+```
+
+运行发布目录:
+
+```powershell
+cd dist\cpa-pc_dev_windows_amd64
+Copy-Item .\config.example.yaml .\config.yaml
+.\cpa-pc.exe
+```
+
+也可以不复制配置文件, 直接显式指定示例配置:
+
+```powershell
+.\cpa-pc.exe -config .\config.example.yaml
+```
+
+启动后访问:
+
+- Management UI: `http://127.0.0.1:8317/management.html`
+- Health check: `http://127.0.0.1:8317/healthz`
+- CPA-PC info: `http://127.0.0.1:8317/cpa-pc/info`
+
+默认 Management Key 是 `123456`。仅建议本机试用, 对外开放前必须修改 `config.yaml` 中的 `remote-management.secret-key`。
+
+## Local Data
+
+默认路径来自 `config.example.yaml`, 相对配置文件所在目录解析:
+
+- `data-dir`: `./data`
+- `logs-dir`: `./logs`
+- `static-dir`: `./static`
+- `usage.db-path`: `./data/usage.sqlite`
+- `auth-dir`: `~/.cli-proxy-api`
+
+默认 `logging-to-file: false`, 开启后日志写入配置的日志目录。
+
+## Development Checks
+
+```powershell
+go test ./...
+go build ./cmd/cpa-pc
+npm --prefix web test -- --run
+npm --prefix web run lint
+npm --prefix web run build
+```
