@@ -1,11 +1,14 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	pcconfig "github.com/HWliao/CPA-PC/internal/config"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -65,5 +68,69 @@ func TestConfigureManagementStaticPathPreservesExplicitEnv(t *testing.T) {
 
 	if got := os.Getenv("MANAGEMENT_STATIC_PATH"); got != existing {
 		t.Fatalf("MANAGEMENT_STATIC_PATH = %q, want %q", got, existing)
+	}
+}
+
+func TestConfigureEmbeddedLogOutputWritesMainLog(t *testing.T) {
+	t.Setenv("WRITABLE_PATH", "")
+	t.Setenv("writable_path", "")
+
+	logger := log.StandardLogger()
+	originalOut := logger.Out
+	originalFormatter := logger.Formatter
+	originalReportCaller := logger.ReportCaller
+	t.Cleanup(func() {
+		log.SetOutput(originalOut)
+		log.SetFormatter(originalFormatter)
+		log.SetReportCaller(originalReportCaller)
+	})
+
+	dir := t.TempDir()
+	cfg := &pcconfig.Config{
+		LoggingToFile: true,
+		Runtime: pcconfig.RuntimePaths{
+			BaseDir: dir,
+		},
+	}
+
+	if err := ensureEmbeddedWritablePath(cfg); err != nil {
+		t.Fatal(err)
+	}
+	cleanup, err := configureEmbeddedLogOutput(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanup == nil {
+		t.Fatal("cleanup = nil, want configured log writer cleanup")
+	}
+
+	log.WithField("request_id", "abcdef12").Info("embedded log check")
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(dir, "logs", "main.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read log file %s: %v", logPath, err)
+	}
+	if !bytes.Contains(data, []byte("embedded log check")) {
+		t.Fatalf("main.log = %q, want embedded log message", string(data))
+	}
+	if !strings.Contains(string(data), "[abcdef12]") {
+		t.Fatalf("main.log = %q, want request id", string(data))
+	}
+}
+
+func TestEnsureEmbeddedWritablePathPreservesExplicitEnv(t *testing.T) {
+	existing := filepath.Join(t.TempDir(), "writable")
+	t.Setenv("WRITABLE_PATH", existing)
+
+	if err := ensureEmbeddedWritablePath(&pcconfig.Config{Runtime: pcconfig.RuntimePaths{BaseDir: t.TempDir()}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := os.Getenv("WRITABLE_PATH"); got != existing {
+		t.Fatalf("WRITABLE_PATH = %q, want %q", got, existing)
 	}
 }

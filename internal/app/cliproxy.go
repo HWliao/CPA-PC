@@ -31,12 +31,25 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	if err := configureManagementStaticPath(cfg.Runtime.StaticDir); err != nil {
 		return nil, err
 	}
+	if err := ensureEmbeddedWritablePath(cfg); err != nil {
+		return nil, err
+	}
+	logCleanup, err := configureEmbeddedLogOutput(cfg)
+	if err != nil {
+		return nil, err
+	}
+	cleanupFns := make([]func() error, 0, 2)
+	if logCleanup != nil {
+		cleanupFns = append(cleanupFns, logCleanup)
+	}
 	var usageStore *pcstore.Store
 	if cfg.Usage.Enabled {
 		usageStore, err = pcstore.Open(cfg.Runtime.UsageDBPath)
 		if err != nil {
+			closeCleanupFns(cleanupFns)
 			return nil, fmt.Errorf("open usage store: %w", err)
 		}
+		cleanupFns = append(cleanupFns, usageStore.Close)
 	}
 
 	info := httpapi.Info{
@@ -68,9 +81,7 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 		})).
 		Build()
 	if err != nil {
-		if usageStore != nil {
-			_ = usageStore.Close()
-		}
+		closeCleanupFns(cleanupFns)
 		return nil, fmt.Errorf("build embedded CPA service: %w", err)
 	}
 	proxyService := ProxyService(service)
@@ -81,21 +92,22 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 			writer = os.Stdout
 		}
 		service.RegisterUsagePlugin(pcusage.NewPersistPlugin(usageStore, writer))
-		proxyService = &serviceWithStore{service: service, store: usageStore}
+	}
+
+	if len(cleanupFns) > 0 {
+		proxyService = &serviceWithCleanup{service: proxyService, cleanups: cleanupFns}
 	}
 
 	return proxyService, nil
 }
 
-type serviceWithStore struct {
-	service ProxyService
-	store   interface{ Close() error }
+type serviceWithCleanup struct {
+	service  ProxyService
+	cleanups []func() error
 }
 
-func (s *serviceWithStore) Run(ctx context.Context) error {
-	defer func() {
-		_ = s.store.Close()
-	}()
+func (s *serviceWithCleanup) Run(ctx context.Context) error {
+	defer closeCleanupFns(s.cleanups)
 	return s.service.Run(ctx)
 }
 
