@@ -26,7 +26,7 @@ Confirmed decisions:
 ## Tech Stack
 
 - Go module: `github.com/HWliao/CPA-PC`, Go `1.26.0`.
-- Embedded upstream SDK: `github.com/router-for-me/CLIProxyAPI/v6`.
+- Embedded upstream SDK: `github.com/router-for-me/CLIProxyAPI/v7`.
 - Config format: YAML parsed with `gopkg.in/yaml.v3`.
 - Frontend: React `19.2.1`, TypeScript `5.9.3`, Vite `8.0.10`, Vitest `4.1.5`.
 - Packaging: root npm scripts plus `scripts/package-windows.ts`.

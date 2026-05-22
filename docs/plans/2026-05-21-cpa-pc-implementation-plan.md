@@ -22,7 +22,7 @@ The plan is risk-first. Before importing a large frontend or copying usage-servi
 
 ## Architecture Decisions
 
-- Use `github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy` and `github.com/router-for-me/CLIProxyAPI/v6/sdk/config` as the CPA integration surface.
+- Use `github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy` and `github.com/router-for-me/CLIProxyAPI/v7/sdk/config` as the CPA integration surface.
 - Use CLIProxyAPI SDK usage plugin as the usage data source; do not consume HTTP/RESP usage queues in CPA-PC.
 - Keep the usage store and HTTP API inside CPA-PC under `internal/` packages.
 - Keep the migrated frontend source under `web/` and generate `static/management.html` for release.

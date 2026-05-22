@@ -3,8 +3,8 @@ package app
 import "runtime/debug"
 
 const (
-	cliProxyAPIModulePath      = "github.com/router-for-me/CLIProxyAPI/v6"
-	fallbackCLIProxyAPIVersion = "v6.10.9"
+	cliProxyAPIModulePath      = "github.com/router-for-me/CLIProxyAPI/v7"
+	fallbackCLIProxyAPIVersion = "v7.1.19"
 )
 
 func resolveCLIProxyAPIVersion() string {

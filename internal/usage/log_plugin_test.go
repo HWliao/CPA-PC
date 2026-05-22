@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	sdkusage "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/usage"
+	sdkusage "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/usage"
 )
 
 func TestLogPluginWritesUsageRecord(t *testing.T) {
