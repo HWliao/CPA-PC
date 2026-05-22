@@ -66,6 +66,36 @@ func TestRegisterRoutesServesUsageServiceInfo(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesUsageServiceInfoUsesStoredSetupState(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouter(store)
+
+	rec := performRequest(g, http.MethodGet, "/usage-service/info", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["configured"] != false {
+		t.Fatalf("configured = %#v, want false", got["configured"])
+	}
+
+	store.managerConfig = pcstore.ManagerConfig{CPAConnection: pcstore.ManagerCPAConnectionConfig{CPABaseURL: "http://127.0.0.1:8317", ManagementKey: "123456"}}
+	store.hasManagerConfig = true
+	rec = performRequest(g, http.MethodGet, "/usage-service/info", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["configured"] != true {
+		t.Fatalf("configured = %#v, want true", got["configured"])
+	}
+}
+
 func TestRegisterRoutesServesUsagePayload(t *testing.T) {
 	store := &fakeUsageStore{events: []usage.Event{{
 		Timestamp:   "2026-05-21T10:00:00Z",

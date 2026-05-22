@@ -127,11 +127,16 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		c.JSON(http.StatusOK, info)
 	})
 	engine.GET("/usage-service/info", func(c *gin.Context) {
+		configured, err := usageServiceConfigured(c.Request.Context(), opts.Store, info.Configured)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load usage service setup"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"service":    serviceID,
 			"mode":       "embedded",
 			"startedAt":  info.StartedAt,
-			"configured": info.Configured,
+			"configured": configured,
 		})
 	})
 
@@ -413,6 +418,20 @@ func writeAPIError(c *gin.Context, status int, code string, message string) {
 		"error": message,
 		"code":  code,
 	})
+}
+
+func usageServiceConfigured(ctx context.Context, store UsageStore, fallback bool) (bool, error) {
+	if store == nil {
+		return fallback, nil
+	}
+	cfg, ok, err := store.LoadManagerConfig(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return strings.TrimSpace(cfg.CPAConnection.CPABaseURL) != "" && strings.TrimSpace(cfg.CPAConnection.ManagementKey) != "", nil
 }
 
 func managerConfigResponse(ctx context.Context, store UsageStore, cfg *pcconfig.Config) (gin.H, error) {
