@@ -13,6 +13,7 @@ import (
 	pcstore "github.com/HWliao/CPA-PC/internal/store"
 	"github.com/HWliao/CPA-PC/internal/usage"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestRegisterRoutesServesInfo(t *testing.T) {
@@ -127,6 +128,79 @@ func TestRegisterRoutesRejectsInvalidManagementKey(t *testing.T) {
 	rec := performRequest(g, http.MethodGet, "/v0/management/usage", "wrong")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestProtectedUsageServiceRoutesAcceptBcryptHashedManagementKey(t *testing.T) {
+	store := &fakeUsageStore{events: []usage.Event{{
+		EventHash:   "existing-hash",
+		TimestampMS: 1_779_000_000_000,
+		Timestamp:   "2026-05-21T00:00:00Z",
+		Model:       "gemini-test",
+		Endpoint:    "SDK usage",
+		TotalTokens: 3,
+		CreatedAtMS: 1_779_000_000_001,
+	}}}
+	g := newTestRouterWithManagementKey(t, store, "123456")
+	const hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{name: "usage", method: http.MethodGet, path: "/v0/management/usage"},
+		{name: "usage export", method: http.MethodGet, path: "/v0/management/usage/export"},
+		{name: "usage import", method: http.MethodPost, path: "/v0/management/usage/import", body: []byte(`{"event_hash":"imported-hash","timestamp_ms":1779000000000,"timestamp":"2026-05-21T00:00:00Z","model":"gemini-test","endpoint":"SDK usage","total_tokens":1,"created_at_ms":1779000000001}`)},
+		{name: "model prices", method: http.MethodGet, path: "/v0/management/model-prices"},
+		{name: "save model prices", method: http.MethodPut, path: "/v0/management/model-prices", body: []byte(`{"prices":{"gpt-test":{"prompt":1}}}`)},
+		{name: "sync model prices", method: http.MethodPost, path: "/v0/management/model-prices/sync", body: []byte(`{}`)},
+		{name: "api key aliases", method: http.MethodGet, path: "/v0/management/api-key-aliases"},
+		{name: "save api key aliases", method: http.MethodPut, path: "/v0/management/api-key-aliases", body: []byte(`{"items":[{"apiKeyHash":"` + hash + `","alias":"Team A"}]}`)},
+		{name: "delete api key alias", method: http.MethodDelete, path: "/v0/management/api-key-aliases/" + hash},
+		{name: "manager config", method: http.MethodGet, path: "/usage-service/config"},
+		{name: "save manager config", method: http.MethodPut, path: "/usage-service/config", body: []byte(`{"config":{"cpaConnection":{"cpaBaseUrl":"http://127.0.0.1:8317","managementKey":"123456"}}}`)},
+		{name: "status", method: http.MethodGet, path: "/status"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := performRequestWithBody(g, tc.method, tc.path, "123456", tc.body)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestRegisterRoutesSetupAcceptsBcryptHashedManagementKeyFromBody(t *testing.T) {
+	store := &fakeUsageStore{}
+	g := newTestRouterWithManagementKey(t, store, "123456")
+	body := []byte(`{"cpaBaseUrl":"http://127.0.0.1:8317","managementKey":"123456"}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/setup", "", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestRegisterRoutesRejectsRemoteManagementWhenDisabled(t *testing.T) {
+	g := newTestRouter(nil)
+
+	rec := performRequestFrom(g, http.MethodGet, "/status", "123456", nil, "203.0.113.10:1234")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+func TestRegisterRoutesAcceptsManagementPasswordEnv(t *testing.T) {
+	t.Setenv("MANAGEMENT_PASSWORD", "env-secret")
+	g := newTestRouter(nil)
+
+	rec := performRequestFrom(g, http.MethodGet, "/status", "env-secret", nil, "203.0.113.10:1234")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 }
 
@@ -328,6 +402,19 @@ func TestRegisterRoutesExportsAndImportsUsageJSONL(t *testing.T) {
 }
 
 func newTestRouter(store UsageStore) *gin.Engine {
+	return newTestRouterWithOptions(store, "123456")
+}
+
+func newTestRouterWithManagementKey(t *testing.T, store UsageStore, key string) *gin.Engine {
+	t.Helper()
+	hashed, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newTestRouterWithOptions(store, string(hashed))
+}
+
+func newTestRouterWithOptions(store UsageStore, managementKey string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	RegisterRoutesWithOptions(engine, RouteOptions{
@@ -340,7 +427,7 @@ func newTestRouter(store UsageStore) *gin.Engine {
 				UsageDBPath: "test.sqlite",
 			},
 		},
-		ManagementKey: "123456",
+		ManagementKey: managementKey,
 	})
 	return engine
 }
@@ -350,7 +437,12 @@ func performRequest(engine *gin.Engine, method string, path string, key string) 
 }
 
 func performRequestWithBody(engine *gin.Engine, method string, path string, key string, body []byte) *httptest.ResponseRecorder {
+	return performRequestFrom(engine, method, path, key, body, "127.0.0.1:1234")
+}
+
+func performRequestFrom(engine *gin.Engine, method string, path string, key string, body []byte, remoteAddr string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req.RemoteAddr = remoteAddr
 	if key != "" {
 		req.Header.Set("Authorization", "Bearer "+key)
 	}

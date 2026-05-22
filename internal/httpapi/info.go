@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -17,9 +18,10 @@ import (
 	pcstore "github.com/HWliao/CPA-PC/internal/store"
 	"github.com/HWliao/CPA-PC/internal/usage"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
-const serviceID = "cpa-manager"
+const serviceID = "cpa-pc"
 
 const (
 	modelPriceSyncSource = "embedded"
@@ -141,10 +143,11 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 	})
 
 	protected := func(c *gin.Context) bool {
-		if opts.ManagementKey == "" || managementKeyEqual(managementKeyFromRequest(c), opts.ManagementKey) {
+		allowed, status, message := authenticateManagementRequest(c, opts)
+		if allowed {
 			return true
 		}
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid management key"})
+		c.AbortWithStatusJSON(status, gin.H{"error": message})
 		return false
 	}
 
@@ -340,8 +343,8 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 			writeAPIError(c, http.StatusBadRequest, "request_failed", err.Error())
 			return
 		}
-		if opts.ManagementKey != "" && !managementKeyEqual(managementKeyFromRequest(c), opts.ManagementKey) && !managementKeyEqual(strings.TrimSpace(req.ManagementKey), opts.ManagementKey) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid management key", "code": "invalid_management_key"})
+		if allowed, status, message := authenticateManagementRequest(c, opts, req.ManagementKey); !allowed {
+			c.AbortWithStatusJSON(status, gin.H{"error": message, "code": "invalid_management_key"})
 			return
 		}
 		managerCfg := managerConfigFromSetup(req, opts.Config, opts.ManagementKey)
@@ -396,8 +399,60 @@ func managementKeyFromRequest(c *gin.Context) string {
 	return provided
 }
 
-func managementKeyEqual(left, right string) bool {
-	return subtle.ConstantTimeCompare([]byte(left), []byte(right)) == 1
+func authenticateManagementRequest(c *gin.Context, opts RouteOptions, fallbackKeys ...string) (bool, int, string) {
+	providedKeys := append([]string{managementKeyFromRequest(c)}, fallbackKeys...)
+	configuredKey := strings.TrimSpace(opts.ManagementKey)
+	envSecret := strings.TrimSpace(os.Getenv("MANAGEMENT_PASSWORD"))
+	allowRemote := envSecret != ""
+	if opts.Config != nil && opts.Config.RemoteManagement.AllowRemote {
+		allowRemote = true
+	}
+
+	clientIP := c.ClientIP()
+	localClient := clientIP == "127.0.0.1" || clientIP == "::1"
+	if !localClient && !allowRemote {
+		return false, http.StatusForbidden, "remote management disabled"
+	}
+	if configuredKey == "" && envSecret == "" {
+		return false, http.StatusForbidden, "remote management key not set"
+	}
+
+	hasProvided := false
+	for _, provided := range providedKeys {
+		provided = strings.TrimSpace(provided)
+		if provided == "" {
+			continue
+		}
+		hasProvided = true
+		if managementPlainKeyEqual(provided, envSecret) || managementKeyEqual(provided, configuredKey) {
+			return true, 0, ""
+		}
+	}
+	if !hasProvided {
+		return false, http.StatusUnauthorized, "missing management key"
+	}
+	return false, http.StatusUnauthorized, "invalid management key"
+}
+
+func managementPlainKeyEqual(provided, configured string) bool {
+	provided = strings.TrimSpace(provided)
+	configured = strings.TrimSpace(configured)
+	if provided == "" || configured == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(configured)) == 1
+}
+
+func managementKeyEqual(provided, configured string) bool {
+	provided = strings.TrimSpace(provided)
+	configured = strings.TrimSpace(configured)
+	if provided == "" || configured == "" {
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(configured)) == 1 {
+		return true
+	}
+	return bcrypt.CompareHashAndPassword([]byte(configured), []byte(provided)) == nil
 }
 
 func decodeJSONBody(c *gin.Context, value any) error {
