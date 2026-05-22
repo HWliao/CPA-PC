@@ -16,13 +16,15 @@ type ProxyService interface {
 type ProxyFactory func(*pcconfig.Config, ServiceOptions) (ProxyService, error)
 
 type ServiceOptions struct {
-	Version string
-	Stdout  io.Writer
+	Version   string
+	BuildDate string
+	Stdout    io.Writer
 }
 
 type Options struct {
 	ConfigPath   string
 	Version      string
+	BuildDate    string
 	Stdout       io.Writer
 	ProxyFactory ProxyFactory
 }
@@ -48,6 +50,10 @@ func Run(ctx context.Context, opts Options) error {
 	if version == "" {
 		version = "dev"
 	}
+	buildDate := opts.BuildDate
+	if buildDate == "" {
+		buildDate = "unknown"
+	}
 
 	fmt.Fprintf(stdout, "CPA-PC %s foundation initialized\n", version)
 	fmt.Fprintf(stdout, "config: %s\n", cfg.Runtime.ConfigPath)
@@ -59,7 +65,7 @@ func Run(ctx context.Context, opts Options) error {
 		factory = NewCLIProxyService
 	}
 
-	service, err := factory(cfg, ServiceOptions{Version: version, Stdout: stdout})
+	service, err := factory(cfg, ServiceOptions{Version: version, BuildDate: buildDate, Stdout: stdout})
 	if err != nil {
 		return err
 	}

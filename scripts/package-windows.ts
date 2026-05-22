@@ -1,19 +1,18 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 type Options = {
   buildFrontend: boolean;
   outputRoot: string;
-  version: string;
+  version?: string;
 };
 
 function parseArgs(args: string[]): Options {
   const options: Options = {
     buildFrontend: false,
     outputRoot: 'dist',
-    version: process.env.VERSION || 'dev',
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -54,11 +53,17 @@ function parseArgs(args: string[]): Options {
     throw new Error(`Unknown argument: ${arg}`);
   }
 
-  if (!options.version) {
-    throw new Error('Version cannot be empty');
-  }
-
   return options;
+}
+
+function readRootPackageVersion(repoRoot: string): string {
+  const packageJsonPath = path.join(repoRoot, 'package.json');
+  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: unknown };
+  const version = typeof pkg.version === 'string' ? pkg.version.trim() : '';
+  if (!version) {
+    throw new Error('Root package.json version is required');
+  }
+  return version;
 }
 
 function readValue(args: string[], index: number, flag: string): string {
@@ -73,7 +78,7 @@ function printUsage(): void {
   console.log(`Usage: npm run package:windows -- [options]
 
 Options:
-  --version, -v <value>      Version embedded into cpa-pc.exe. Defaults to VERSION or dev.
+  --version, -v <value>      Version embedded into cpa-pc.exe. Defaults to root package.json.
   --output-root <path>       Output root directory. Defaults to dist.
   --build-frontend           Run the web build before packaging.
   --help, -h                 Show this help.
@@ -122,7 +127,9 @@ function main(): void {
   const options = parseArgs(process.argv.slice(2));
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const repoRoot = path.dirname(scriptDir);
-  const safeVersion = options.version.replace(/[\\/:*?"<>|]/g, '-');
+  const version = options.version || readRootPackageVersion(repoRoot);
+  const buildDate = new Date().toISOString();
+  const safeVersion = version.replace(/[\\/:*?"<>|]/g, '-');
   const packagePath = path.join(repoRoot, options.outputRoot, `cpa-pc_${safeVersion}_windows_amd64`);
   const zipPath = `${packagePath}.zip`;
   const staticSource = path.join(repoRoot, 'static', 'management.html');
@@ -131,9 +138,11 @@ function main(): void {
   const windowsScriptFiles = ['manage-cpa-pc.ps1', 'start-cpa-pc.vbs'];
 
   if (options.buildFrontend) {
+    const frontendEnv = { ...process.env };
+    delete frontendEnv.VERSION;
     runNpm(['--prefix', path.join(repoRoot, 'web'), 'run', 'build'], {
       cwd: repoRoot,
-      env: { ...process.env, VERSION: options.version },
+      env: frontendEnv,
     });
   }
 
@@ -170,7 +179,7 @@ function main(): void {
       'build',
       '-trimpath',
       '-ldflags',
-      `-s -w -X main.version=${options.version}`,
+      `-s -w -X main.version=${version} -X main.buildDate=${buildDate}`,
       '-o',
       path.join(packagePath, 'cpa-pc.exe'),
       './cmd/cpa-pc',

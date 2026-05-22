@@ -53,7 +53,11 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	}
 
 	info := httpapi.Info{
-		Version: opts.Version,
+		Version:   opts.Version,
+		BuildDate: opts.BuildDate,
+		CLIProxyAPI: httpapi.CLIProxyAPIInfo{
+			Version: resolveCLIProxyAPIVersion(),
+		},
 		CPA: httpapi.CPAInfo{
 			Host: cpaCfg.Host,
 			Port: cpaCfg.Port,
@@ -70,6 +74,7 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	service, err := cliproxy.NewBuilder().
 		WithConfig(cpaCfg).
 		WithConfigPath(cfg.Runtime.ConfigPath).
+		WithServerOptions(api.WithMiddleware(buildInfoHeaderMiddleware(opts.BuildDate))).
 		WithServerOptions(api.WithRouterConfigurator(func(engine *gin.Engine, _ *handlers.BaseAPIHandler, _ *cpaconfig.Config) {
 			httpapi.RegisterRoutesWithOptions(engine, httpapi.RouteOptions{
 				Info:          info,

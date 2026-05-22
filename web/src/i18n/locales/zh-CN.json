@@ -2014,6 +2014,7 @@
     "api_version": "CLI Proxy API 版本",
     "build_date": "构建时间",
     "version": "管理中心版本",
+    "cpa_pc_version": "cpa-pc 版本",
     "author": "作者"
   }
 }

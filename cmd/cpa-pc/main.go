@@ -12,7 +12,10 @@ import (
 	"github.com/HWliao/CPA-PC/internal/app"
 )
 
-var version = "dev"
+var (
+	version   = "dev"
+	buildDate = "unknown"
+)
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -54,6 +57,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	if err := app.Run(ctx, app.Options{
 		ConfigPath: *configPath,
 		Version:    version,
+		BuildDate:  buildDate,
 		Stdout:     stdout,
 	}); err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)

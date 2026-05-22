@@ -2009,6 +2009,7 @@
     "api_version": "Версия CLI Proxy API",
     "build_date": "Время сборки",
     "version": "Версия интерфейса управления",
+    "cpa_pc_version": "Версия cpa-pc",
     "author": "Автор"
   }
 }

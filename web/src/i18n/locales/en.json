@@ -2014,6 +2014,7 @@
     "api_version": "CLI Proxy API Version",
     "build_date": "Build Time",
     "version": "Management UI Version",
+    "cpa_pc_version": "cpa-pc Version",
     "author": "Author"
   }
 }

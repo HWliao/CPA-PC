@@ -5,14 +5,24 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 
-// Get version from environment, git tag, or package.json
+// Get version from environment, package.json, or git tag
 function getVersion(): string {
   // 1. Environment variable (set by GitHub Actions)
   if (process.env.VERSION) {
     return process.env.VERSION;
   }
 
-  // 2. Try git tag
+  // 2. package.json version
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
+    if (pkg.version && pkg.version !== '0.0.0') {
+      return pkg.version;
+    }
+  } catch {
+    // package.json not readable
+  }
+
+  // 3. Try git tag
   for (const args of [
     ['describe', '--tags', '--exact-match'],
     ['describe', '--tags'],
@@ -28,16 +38,6 @@ function getVersion(): string {
     } catch {
       // Git not available or no tags for this lookup
     }
-  }
-
-  // 3. Fall back to package.json version
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
-    if (pkg.version && pkg.version !== '0.0.0') {
-      return pkg.version;
-    }
-  } catch {
-    // package.json not readable
   }
 
   return 'dev';

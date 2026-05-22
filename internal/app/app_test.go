@@ -24,6 +24,7 @@ func TestRunLoadsConfigPrintsSummaryAndRunsProxy(t *testing.T) {
 	err := Run(context.Background(), Options{
 		ConfigPath: configPath,
 		Version:    "test",
+		BuildDate:  "2026-05-22T00:00:00Z",
 		Stdout:     &stdout,
 		ProxyFactory: func(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService, error) {
 			if cfg.Runtime.ConfigPath != filepath.Clean(configPath) {
@@ -31,6 +32,9 @@ func TestRunLoadsConfigPrintsSummaryAndRunsProxy(t *testing.T) {
 			}
 			if opts.Version != "test" {
 				t.Fatalf("Version = %q, want test", opts.Version)
+			}
+			if opts.BuildDate != "2026-05-22T00:00:00Z" {
+				t.Fatalf("BuildDate = %q, want 2026-05-22T00:00:00Z", opts.BuildDate)
 			}
 			return proxy, nil
 		},

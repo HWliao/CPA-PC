@@ -12,7 +12,7 @@ import {
   useModelsStore,
   useThemeStore,
 } from '@/stores';
-import { configApi, versionApi } from '@/services/api';
+import { configApi, cpaPcApi, versionApi, type CpaPcInfo } from '@/services/api';
 import { apiKeysApi } from '@/services/api/apiKeys';
 import { classifyModels } from '@/utils/models';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
@@ -69,6 +69,14 @@ const compareVersions = (latest?: string | null, current?: string | null) => {
   return 0;
 };
 
+const formatBuildTime = (value: string | null | undefined, language: string, fallback: string) => {
+  const text = value?.trim();
+  if (!text || text.toLowerCase() === 'unknown') return fallback;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toLocaleString(language);
+};
+
 export function SystemPage() {
   const { t, i18n } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
@@ -94,6 +102,7 @@ export function SystemPage() {
   const [requestLogSaving, setRequestLogSaving] = useState(false);
   const [checkingAppVersion, setCheckingAppVersion] = useState(false);
   const [checkingVersion, setCheckingVersion] = useState(false);
+  const [cpaPcInfo, setCpaPcInfo] = useState<CpaPcInfo | null>(null);
 
   const apiKeysCache = useRef<string[]>([]);
   const versionTapCount = useRef(0);
@@ -109,10 +118,14 @@ export function SystemPage() {
   const canEditRequestLog = auth.connectionStatus === 'connected' && Boolean(config);
 
   const appVersion = __APP_VERSION__ || t('system_info.version_unknown');
-  const apiVersion = auth.serverVersion || t('system_info.version_unknown');
-  const buildTime = auth.serverBuildDate
-    ? new Date(auth.serverBuildDate).toLocaleString(i18n.language)
-    : t('system_info.version_unknown');
+  const cpaPcVersion = cpaPcInfo?.version || t('system_info.version_unknown');
+  const currentApiVersion = cpaPcInfo?.cliProxyApi?.version || auth.serverVersion;
+  const apiVersion = currentApiVersion || t('system_info.version_unknown');
+  const buildTime = formatBuildTime(
+    cpaPcInfo?.buildDate || auth.serverBuildDate,
+    i18n.language,
+    t('system_info.version_unknown')
+  );
 
   const getIconForCategory = (categoryId: string): string | null => {
     const iconEntry = MODEL_CATEGORY_ICONS[categoryId];
@@ -324,7 +337,7 @@ export function SystemPage() {
       const data = await versionApi.checkLatest();
       const latestRaw = data?.['latest-version'] ?? data?.latest_version ?? data?.latest ?? '';
       const latest = typeof latestRaw === 'string' ? latestRaw : String(latestRaw ?? '');
-      const comparison = compareVersions(latest, auth.serverVersion);
+      const comparison = compareVersions(latest, currentApiVersion);
 
       if (!latest) {
         showNotification(t('system_info.version_check_error'), 'error');
@@ -349,13 +362,34 @@ export function SystemPage() {
     } finally {
       setCheckingVersion(false);
     }
-  }, [auth.serverVersion, showNotification, t]);
+  }, [currentApiVersion, showNotification, t]);
 
   useEffect(() => {
     fetchConfig().catch(() => {
       // ignore
     });
   }, [fetchConfig]);
+
+  useEffect(() => {
+    if (auth.connectionStatus !== 'connected' || !auth.apiBase) {
+      setCpaPcInfo(null);
+      return;
+    }
+
+    let cancelled = false;
+    cpaPcApi
+      .getInfo(auth.apiBase)
+      .then((info) => {
+        if (!cancelled) setCpaPcInfo(info);
+      })
+      .catch(() => {
+        if (!cancelled) setCpaPcInfo(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.apiBase, auth.connectionStatus]);
 
   useEffect(() => {
     if (requestLogModalOpen && !requestLogTouched) {
@@ -419,6 +453,11 @@ export function SystemPage() {
                 </Button>
               </div>
               <div className={styles.tileValue}>{appVersion}</div>
+            </div>
+
+            <div className={styles.infoTile}>
+              <div className={styles.tileLabel}>{t('footer.cpa_pc_version')}</div>
+              <div className={styles.tileValue}>{cpaPcVersion}</div>
             </div>
 
             <div className={styles.infoTile}>

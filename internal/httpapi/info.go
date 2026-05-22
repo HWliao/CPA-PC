@@ -30,13 +30,19 @@ const (
 )
 
 type Info struct {
-	Service    string    `json:"service"`
-	Mode       string    `json:"mode,omitempty"`
-	Version    string    `json:"version"`
-	StartedAt  int64     `json:"startedAt,omitempty"`
-	Configured bool      `json:"configured"`
-	CPA        CPAInfo   `json:"cpa"`
-	Usage      UsageInfo `json:"usage"`
+	Service     string          `json:"service"`
+	Mode        string          `json:"mode,omitempty"`
+	Version     string          `json:"version"`
+	BuildDate   string          `json:"buildDate,omitempty"`
+	StartedAt   int64           `json:"startedAt,omitempty"`
+	Configured  bool            `json:"configured"`
+	CLIProxyAPI CLIProxyAPIInfo `json:"cliProxyApi,omitempty"`
+	CPA         CPAInfo         `json:"cpa"`
+	Usage       UsageInfo       `json:"usage"`
+}
+
+type CLIProxyAPIInfo struct {
+	Version string `json:"version,omitempty"`
 }
 
 type CPAInfo struct {

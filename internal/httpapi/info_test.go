@@ -20,9 +20,11 @@ func TestRegisterRoutesServesInfo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	RegisterRoutes(engine, Info{
-		Version: "test-version",
-		CPA:     CPAInfo{Host: "", Port: 8317},
-		Usage:   UsageInfo{Enabled: true},
+		Version:     "test-version",
+		BuildDate:   "2026-05-22T00:00:00Z",
+		CLIProxyAPI: CLIProxyAPIInfo{Version: "v6.10.9"},
+		CPA:         CPAInfo{Host: "", Port: 8317},
+		Usage:       UsageInfo{Enabled: true},
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/cpa-pc/info", nil)
@@ -42,6 +44,12 @@ func TestRegisterRoutesServesInfo(t *testing.T) {
 	}
 	if got.Version != "test-version" {
 		t.Fatalf("Version = %q, want %q", got.Version, "test-version")
+	}
+	if got.BuildDate != "2026-05-22T00:00:00Z" {
+		t.Fatalf("BuildDate = %q, want %q", got.BuildDate, "2026-05-22T00:00:00Z")
+	}
+	if got.CLIProxyAPI.Version != "v6.10.9" {
+		t.Fatalf("CLIProxyAPI.Version = %q, want %q", got.CLIProxyAPI.Version, "v6.10.9")
 	}
 	if got.CPA.Port != 8317 {
 		t.Fatalf("CPA.Port = %d, want 8317", got.CPA.Port)
@@ -280,8 +288,8 @@ func TestRegisterRoutesManagerConfigIncludesEmbeddedUsageStatus(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 	var got struct {
-		Config pcstore.ManagerConfig `json:"config"`
-		Source string                `json:"source"`
+		Config   pcstore.ManagerConfig `json:"config"`
+		Source   string                `json:"source"`
 		CPAUsage struct {
 			UsageStatisticsEnabled          bool `json:"usageStatisticsEnabled"`
 			RedisUsageQueueRetentionSeconds int  `json:"redisUsageQueueRetentionSeconds"`
