@@ -19,12 +19,14 @@ Acceptance criteria:
 - Register the scheduled task using the same strategy as `docs/specs/create-scheduled-task.ps1`: current-user logon trigger, hidden task, interactive current-user principal, limited run level, battery-friendly settings.
 - Resolve `cpa-pc.exe` and helper scripts relative to the script/release directory, not from an absolute machine-specific path.
 - Update Windows packaging so the scripts are copied directly into the same release directory as `cpa-pc.exe`.
+- Create a same-name `.zip` archive beside the generated release directory.
 - Do not implement extra log cleanup, config editing, Windows service installation, or dependency installation.
 
 ## Tech Stack
 
 - PowerShell compatible with Windows PowerShell 5.1 or newer.
 - VBScript via Windows Script Host for hidden process launch, matching the existing `docs/specs/start-proxy.vbs` pattern.
+- Windows PowerShell `Compress-Archive` for release zip creation.
 - Node.js packaging script at `scripts/package-windows.ts` copies release assets.
 - Go application binary built from `./cmd/cpa-pc` as `cpa-pc.exe`.
 
@@ -40,13 +42,13 @@ npm --prefix web run lint
 npm --prefix web run build
 ```
 
-Package Windows release without rebuilding the frontend:
+Package Windows release directory and zip without rebuilding the frontend:
 
 ```powershell
 npm run package:windows -- --version dev
 ```
 
-Package Windows release and rebuild the frontend:
+Package Windows release directory and zip while rebuilding the frontend:
 
 ```powershell
 npm run package:windows -- --version dev --build-frontend
@@ -97,6 +99,7 @@ dist/cpa-pc_<version>_windows_amd64/
   static/management.html
   data/
   logs/
+dist/cpa-pc_<version>_windows_amd64.zip
 ```
 
 ## Code Style
@@ -154,7 +157,7 @@ Conventions:
 Automated checks:
 
 - Run `go test ./...` to ensure backend changes were not broken.
-- Run `npm run package:windows -- --version dev` to ensure release packaging succeeds and includes the Windows scripts.
+- Run `npm run package:windows -- --version dev` to ensure release packaging succeeds, includes the Windows scripts, and creates the same-name zip.
 - If frontend assets are rebuilt, run `npm --prefix web test -- --run`, `npm --prefix web run lint`, and `npm --prefix web run build`.
 
 Manual Windows checks:
@@ -180,6 +183,7 @@ Always:
 - Keep scripts compatible with Windows PowerShell 5.1 and default Windows Script Host.
 - Keep implementation minimal and focused on task registration plus program start/stop/status.
 - Update packaging so the management scripts are copied into the final executable directory.
+- Update packaging so the final release zip is recreated from the generated release directory.
 
 Ask first:
 
@@ -202,6 +206,7 @@ Never:
 - The spec was reviewed and approved before script implementation began.
 - `scripts/win/manage-cpa-pc.ps1` and `scripts/win/start-cpa-pc.vbs` were created after approval.
 - `npm run package:windows -- --version dev` creates a release directory containing `cpa-pc.exe`, `manage-cpa-pc.ps1`, and `start-cpa-pc.vbs` in the same directory.
+- `npm run package:windows -- --version dev` creates `dist/cpa-pc_dev_windows_amd64.zip` beside the release directory.
 - The PowerShell manager supports non-interactive actions and an interactive menu.
 - Manual `status` checks work from both the source script path and packaged release path without third-party dependencies.
 - Manual `create`, `start`, `stop`, and `remove` remain destructive/local-environment checks and were intentionally not run during implementation.
@@ -217,6 +222,7 @@ Passed:
 - `git diff --check`
 
 Package inspection confirmed `dist/cpa-pc_dev_windows_amd64/` contains `manage-cpa-pc.ps1` and `start-cpa-pc.vbs` beside `cpa-pc.exe`.
+Zip inspection confirmed `dist/cpa-pc_dev_windows_amd64.zip` contains the `cpa-pc_dev_windows_amd64/` release directory and management scripts.
 
 ## Confirmed Decisions
 

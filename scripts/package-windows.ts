@@ -124,6 +124,7 @@ function main(): void {
   const repoRoot = path.dirname(scriptDir);
   const safeVersion = options.version.replace(/[\\/:*?"<>|]/g, '-');
   const packagePath = path.join(repoRoot, options.outputRoot, `cpa-pc_${safeVersion}_windows_amd64`);
+  const zipPath = `${packagePath}.zip`;
   const staticSource = path.join(repoRoot, 'static', 'management.html');
   const configSource = path.join(repoRoot, 'config.example.yaml');
   const windowsScriptsSource = path.join(repoRoot, 'scripts', 'win');
@@ -152,6 +153,10 @@ function main(): void {
 
   if (existsSync(packagePath)) {
     rmSync(packagePath, { force: true, recursive: true });
+  }
+
+  if (existsSync(zipPath)) {
+    rmSync(zipPath, { force: true });
   }
 
   const staticTargetDir = path.join(packagePath, 'static');
@@ -195,7 +200,23 @@ function main(): void {
     }
   }
 
+  run(
+    commandName('powershell'),
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      '& { param($Source, $Destination) Compress-Archive -LiteralPath $Source -DestinationPath $Destination -Force }',
+      packagePath,
+      zipPath,
+    ],
+    { cwd: repoRoot },
+  );
+
   console.log(`Package created: ${packagePath}`);
+  console.log(`Zip created: ${zipPath}`);
 }
 
 try {
