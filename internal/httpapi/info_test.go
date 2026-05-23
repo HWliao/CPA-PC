@@ -174,7 +174,8 @@ func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	}}
 	g := newTestRouter(store)
 
-	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=hour", "123456")
+	const hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=hour&provider=openai&authIndex=auth-a&apiKeyHash="+hash+"&model=gpt-test", "123456")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
@@ -190,6 +191,9 @@ func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	}
 	if store.chartQuery.Range != usage.ChartRange1H || store.chartQuery.Granularity != usage.ChartGranularityHour {
 		t.Fatalf("chart query = %#v", store.chartQuery)
+	}
+	if store.chartQuery.Provider != "openai" || store.chartQuery.AuthIndex != "auth-a" || store.chartQuery.APIKeyHash != hash || store.chartQuery.Model != "gpt-test" {
+		t.Fatalf("chart filters = %#v", store.chartQuery)
 	}
 }
 

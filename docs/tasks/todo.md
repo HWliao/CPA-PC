@@ -33,16 +33,16 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Extend the backend chart path so the same endpoint returns all provider/auth-file, API-key, and model series plus filter options. Add combinable provider, authIndex, apiKeyHash, and model filters.
 
 **Acceptance criteria:**
-- [ ] Response includes all matching `byProviderAuthFile.series`, `byApiKey.series`, and `byModel.series` without Top N limiting or `Other` aggregation.
-- [ ] Response includes filter options for providers, auth files, API keys, and models.
-- [ ] API-key labels use aliases when available and never expose raw API keys.
-- [ ] Filters can be combined and apply consistently to global buckets and all dimension series.
-- [ ] `missingPriceModels` lists models that contributed events but had no stored price.
+- [x] Response includes all matching `byProviderAuthFile.series`, `byApiKey.series`, and `byModel.series` without Top N limiting or `Other` aggregation.
+- [x] Response includes filter options for providers, auth files, API keys, and models.
+- [x] API-key labels use aliases when available and never expose raw API keys.
+- [x] Filters can be combined and apply consistently to global buckets and all dimension series.
+- [x] `missingPriceModels` lists models that contributed events but had no stored price.
 
 **Verification:**
-- [ ] Tests pass: `go test ./internal/store ./internal/httpapi ./internal/usage`.
-- [ ] Store tests cover all three dimensions, deterministic ordering, alias labels, missing prices, and combined filters.
-- [ ] Route tests cover query parameter propagation and response shape.
+- [x] Tests pass: `go test ./internal/store ./internal/httpapi ./internal/usage`.
+- [x] Store tests cover all three dimensions, deterministic ordering, alias labels, missing prices, and combined filters.
+- [x] Route tests cover query parameter propagation and response shape.
 
 **Dependencies:** Task 1.
 
