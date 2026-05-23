@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { IconChartLine, IconExternalLink, IconRefreshCw } from '@/components/ui/icons';
+import { EChartPanel } from '@/features/monitoring/charts/EChartPanel';
+import { buildGlobalUsageChartOption } from '@/features/monitoring/charts/chartOptions';
 import { useUsageCharts } from '@/features/monitoring/charts/useUsageCharts';
 import { formatCompactNumber, formatUsd } from '@/utils/usage';
 import styles from './MonitoringChartsPage.module.scss';
@@ -18,8 +20,9 @@ export function MonitoringChartsPage() {
   const { charts, loading, error, lastRefreshedAt, usageServiceAvailable, loadCharts } =
     useUsageCharts(DEFAULT_CHART_PARAMS);
 
-  const globalBucketCount = charts?.global.buckets.length ?? 0;
-  const globalTotals = charts?.global.buckets.reduce(
+  const globalBuckets = charts?.global.buckets ?? [];
+  const globalBucketCount = globalBuckets.length;
+  const globalTotals = globalBuckets.reduce(
     (totals, bucket) => ({
       inputTokens: totals.inputTokens + bucket.inputTokens,
       outputTokens: totals.outputTokens + bucket.outputTokens,
@@ -35,6 +38,10 @@ export function MonitoringChartsPage() {
         charts.byApiKey.series.length > 0 ||
         charts.byModel.series.length > 0)
   );
+  const missingPriceModels = charts?.missingPriceModels ?? [];
+  const globalTokenTitle = t('monitoring.charts_global_tokens', { defaultValue: 'Global tokens' });
+  const globalCostTitle = t('monitoring.charts_global_cost', { defaultValue: 'Global cost' });
+  const globalTpmTitle = t('monitoring.charts_global_tpm', { defaultValue: 'Global TPM' });
   const statusTone = error ? 'bad' : loading ? 'info' : usageServiceAvailable ? 'good' : 'warn';
   const statusLabel = error
     ? t('monitoring.charts_status_error', { defaultValue: 'Chart load failed' })
@@ -111,24 +118,106 @@ export function MonitoringChartsPage() {
           </span>
         </Card>
       ) : (
-        <section className={styles.summaryGrid}>
-          <Card className={styles.summaryCard}>
-            <span>{t('monitoring.input_tokens')}</span>
-            <strong>{formatCompactNumber(globalTotals?.inputTokens ?? 0)}</strong>
-          </Card>
-          <Card className={styles.summaryCard}>
-            <span>{t('monitoring.output_tokens')}</span>
-            <strong>{formatCompactNumber(globalTotals?.outputTokens ?? 0)}</strong>
-          </Card>
-          <Card className={styles.summaryCard}>
-            <span>{t('monitoring.cached_tokens')}</span>
-            <strong>{formatCompactNumber(globalTotals?.cachedTokens ?? 0)}</strong>
-          </Card>
-          <Card className={styles.summaryCard}>
-            <span>{t('monitoring.estimated_cost')}</span>
-            <strong>{formatUsd(globalTotals?.totalCost ?? 0)}</strong>
-          </Card>
-        </section>
+        <>
+          <section className={styles.summaryGrid}>
+            <Card className={styles.summaryCard}>
+              <span>{t('monitoring.input_tokens')}</span>
+              <strong>{formatCompactNumber(globalTotals.inputTokens)}</strong>
+            </Card>
+            <Card className={styles.summaryCard}>
+              <span>{t('monitoring.output_tokens')}</span>
+              <strong>{formatCompactNumber(globalTotals.outputTokens)}</strong>
+            </Card>
+            <Card className={styles.summaryCard}>
+              <span>{t('monitoring.cached_tokens')}</span>
+              <strong>{formatCompactNumber(globalTotals.cachedTokens)}</strong>
+            </Card>
+            <Card className={styles.summaryCard}>
+              <span>{t('monitoring.estimated_cost')}</span>
+              <strong>{formatUsd(globalTotals.totalCost)}</strong>
+            </Card>
+          </section>
+
+          {missingPriceModels.length > 0 ? (
+            <Card className={styles.warningPanel}>
+              <div>
+                <strong>
+                  {t('monitoring.charts_missing_prices_title', { defaultValue: 'Missing model prices' })}
+                </strong>
+                <span>
+                  {t('monitoring.charts_missing_prices_desc', {
+                    defaultValue: 'Cost charts may be incomplete until prices are configured for these models.',
+                  })}
+                </span>
+              </div>
+              <div className={styles.warningList}>
+                {missingPriceModels.map((model) => (
+                  <code key={model}>{model}</code>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          <section className={styles.chartGrid}>
+            <Card className={styles.chartCard}>
+              <div className={styles.chartHeader}>
+                <h2>{globalTokenTitle}</h2>
+                <span>
+                  {t('monitoring.charts_global_tokens_desc', {
+                    defaultValue: 'Input, output, and cached tokens by bucket.',
+                  })}
+                </span>
+              </div>
+              <EChartPanel
+                ariaLabel={globalTokenTitle}
+                className={styles.chartCanvas}
+                option={buildGlobalUsageChartOption({
+                  title: globalTokenTitle,
+                  family: 'tokens',
+                  buckets: globalBuckets,
+                })}
+              />
+            </Card>
+            <Card className={styles.chartCard}>
+              <div className={styles.chartHeader}>
+                <h2>{globalCostTitle}</h2>
+                <span>
+                  {t('monitoring.charts_global_cost_desc', {
+                    defaultValue: 'Estimated spend by bucket based on configured model prices.',
+                  })}
+                </span>
+              </div>
+              <EChartPanel
+                ariaLabel={globalCostTitle}
+                className={styles.chartCanvas}
+                option={buildGlobalUsageChartOption({
+                  title: globalCostTitle,
+                  family: 'cost',
+                  buckets: globalBuckets,
+                })}
+              />
+            </Card>
+            <Card className={styles.chartCard}>
+              <div className={styles.chartHeader}>
+                <h2>{globalTpmTitle}</h2>
+                <span>
+                  {t('monitoring.charts_global_tpm_desc', {
+                    defaultValue: 'Input, output, and cached tokens per minute.',
+                  })}
+                </span>
+              </div>
+              <EChartPanel
+                ariaLabel={globalTpmTitle}
+                className={styles.chartCanvas}
+                option={buildGlobalUsageChartOption({
+                  title: globalTpmTitle,
+                  family: 'tpm',
+                  buckets: globalBuckets,
+                })}
+              />
+            </Card>
+          </section>
+        </>
       )}
     </div>
   );

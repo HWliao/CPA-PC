@@ -179,6 +179,88 @@
   font-size: 24px;
 }
 
+.warningPanel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--warning-color) 34%, var(--border-color));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--warning-color) 8%, var(--bg-primary));
+}
+
+.warningPanel div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.warningPanel strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.warningPanel span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.warningList {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.warningList code {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chartCard {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.chartHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.chartHeader h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.chartHeader span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chartCanvas {
+  min-height: 300px;
+  min-width: 0;
+}
+
 @container monitoring-charts-page (max-width: 760px) {
   .statusBar,
   .statusActions {
@@ -192,6 +274,18 @@
 
   .summaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .warningPanel {
+    flex-direction: column;
+  }
+
+  .warningList {
+    justify-content: flex-start;
+  }
+
+  .chartGrid {
+    grid-template-columns: 1fr;
   }
 }
 

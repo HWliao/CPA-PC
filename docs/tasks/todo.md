@@ -132,15 +132,15 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Use the chart infrastructure on the new page to render the first complete visible chart path: global token structure, global cost, and global TPM line charts from the loaded response.
 
 **Acceptance criteria:**
-- [ ] Global token, cost, and TPM charts render as ECharts line charts.
-- [ ] Global chart panels preserve loading, error, and empty states.
-- [ ] Missing price models are surfaced without blocking token or TPM charts.
-- [ ] The layout still follows the existing monitoring/Codex page rhythm.
+- [x] Global token, cost, and TPM charts render as ECharts line charts.
+- [x] Global chart panels preserve loading, error, and empty states.
+- [x] Missing price models are surfaced without blocking token or TPM charts.
+- [x] The layout still follows the existing monitoring/Codex page rhythm.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
-- [ ] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
-- [ ] Type check passes: `npm --prefix web run type-check`.
+- [x] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
+- [x] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
+- [x] Type check passes: `npm --prefix web run type-check`.
 
 **Dependencies:** Task 5.
 
