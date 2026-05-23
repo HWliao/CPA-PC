@@ -43,12 +43,24 @@ export function MonitoringChartsPage() {
     }),
     { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalCost: 0 }
   );
-  const hasData = Boolean(
+  const hasGlobalUsageValues = globalBuckets.some(
+    (bucket) =>
+      bucket.inputTokens !== 0 ||
+      bucket.outputTokens !== 0 ||
+      bucket.cachedTokens !== 0 ||
+      bucket.totalCost !== 0 ||
+      bucket.tpmInput !== 0 ||
+      bucket.tpmOutput !== 0 ||
+      bucket.tpmCached !== 0
+  );
+  const hasDimensionSeries = Boolean(
     charts &&
-      (globalBucketCount > 0 ||
-        charts.byProviderAuthFile.series.length > 0 ||
+      (charts.byProviderAuthFile.series.length > 0 ||
         charts.byApiKey.series.length > 0 ||
         charts.byModel.series.length > 0)
+  );
+  const hasData = Boolean(
+    charts && (hasGlobalUsageValues || hasDimensionSeries)
   );
   const missingPriceModels = charts?.missingPriceModels ?? [];
   const providerOptions = [

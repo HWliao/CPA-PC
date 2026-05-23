@@ -103,10 +103,12 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 		})
 		addToSeries(providerEntry, timestampMS, inputTokens, outputTokens, cachedTokens, cost)
 
-		apiKeyEntry := getChartSeries(apiKeySeries, apiKeyHashText, apiKeyDisplayLabel(apiKeyHashText, aliasLabels), response, func(series *usage.ChartSeries) {
-			series.APIKeyHash = apiKeyHashText
-		})
-		addToSeries(apiKeyEntry, timestampMS, inputTokens, outputTokens, cachedTokens, cost)
+		if apiKeyHashText != "" {
+			apiKeyEntry := getChartSeries(apiKeySeries, apiKeyHashText, apiKeyDisplayLabel(apiKeyHashText, aliasLabels), response, func(series *usage.ChartSeries) {
+				series.APIKeyHash = apiKeyHashText
+			})
+			addToSeries(apiKeyEntry, timestampMS, inputTokens, outputTokens, cachedTokens, cost)
+		}
 
 		modelEntry := getChartSeries(modelSeries, model, defaultChartLabel(model, "-"), response, func(series *usage.ChartSeries) {
 			series.Model = model

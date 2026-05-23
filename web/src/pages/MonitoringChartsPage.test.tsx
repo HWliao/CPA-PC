@@ -125,6 +125,37 @@ describe('MonitoringChartsPage', () => {
     expect(renderToStaticMarkup(<MonitoringChartsPage />)).toContain('No chart data yet');
   });
 
+  it('renders the empty state when buckets have no usage values', () => {
+    vi.mocked(useUsageCharts).mockReturnValue(
+      createHookState({
+        charts: createChartsResponse({
+          options: { providers: [], authFiles: [], apiKeys: [], models: [] },
+          global: {
+            buckets: [
+              {
+                startMs: 0,
+                endMs: 3600000,
+                label: '10:00',
+                inputTokens: 0,
+                outputTokens: 0,
+                cachedTokens: 0,
+                totalCost: 0,
+                tpmInput: 0,
+                tpmOutput: 0,
+                tpmCached: 0,
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    const html = renderToStaticMarkup(<MonitoringChartsPage />);
+
+    expect(html).toContain('No chart data yet');
+    expect(html).not.toContain('Global tokens');
+  });
+
   it('renders global chart panels and missing price warnings', () => {
     vi.mocked(useUsageCharts).mockReturnValue(
       createHookState({

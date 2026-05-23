@@ -204,6 +204,47 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 	}
 }
 
+func TestUsageChartsSkipsAPIKeySeriesWithoutHash(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 5, 22, 12, 30, 0, 0, time.UTC).UnixMilli()
+	_, err = db.InsertEvents(context.Background(), []usage.Event{{
+		EventHash:    "no-api-key-event",
+		TimestampMS:  now - 20*60*1000,
+		Timestamp:    time.UnixMilli(now - 20*60*1000).UTC().Format(time.RFC3339Nano),
+		Provider:     "openai",
+		Model:        "gpt-test",
+		AuthIndex:    "auth-a",
+		InputTokens:  100,
+		OutputTokens: 50,
+		CachedTokens: 10,
+		CreatedAtMS:  now - 20*60*1000,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		NowMS:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(charts.Options.APIKeys) != 0 || len(charts.ByAPIKey.Series) != 0 {
+		t.Fatalf("api key dimension should be empty, options=%#v series=%#v", charts.Options.APIKeys, charts.ByAPIKey.Series)
+	}
+	if len(charts.ByProviderAuthFile.Series) != 1 || len(charts.ByModel.Series) != 1 {
+		t.Fatalf("non-api-key dimensions should remain populated, provider=%d model=%d", len(charts.ByProviderAuthFile.Series), len(charts.ByModel.Series))
+	}
+}
+
 func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
 	if err != nil {
