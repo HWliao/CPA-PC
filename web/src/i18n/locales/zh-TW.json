@@ -1399,6 +1399,8 @@
     "charts_cumulative_tokens_desc": "按時間展示輸入、輸出與快取 Token 的累計總量。",
     "charts_cost_title": "Cost",
     "charts_cost_desc": "基於已設定模型單價按時間桶估算花費。",
+    "charts_cumulative_cost_title": "累計 Cost",
+    "charts_cumulative_cost_desc": "按時間展示預估花費累計總量。",
     "charts_tpm_title": "TPM",
     "charts_tpm_desc": "輸入、輸出與快取 Token 每分鐘速率。",
     "charts_dimension_empty_title": "暫無該維度序列",

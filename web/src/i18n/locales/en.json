@@ -1375,6 +1375,8 @@
     "charts_cumulative_tokens_desc": "Running input, output, and cached token totals over time.",
     "charts_cost_title": "Cost",
     "charts_cost_desc": "Estimated spend by bucket based on configured model prices.",
+    "charts_cumulative_cost_title": "Cumulative cost",
+    "charts_cumulative_cost_desc": "Running estimated spend totals over time.",
     "charts_tpm_title": "TPM",
     "charts_tpm_desc": "Input, output, and cached tokens per minute.",
     "charts_dimension_empty_title": "No dimension series",

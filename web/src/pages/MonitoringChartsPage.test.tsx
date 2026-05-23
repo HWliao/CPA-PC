@@ -168,6 +168,7 @@ describe('MonitoringChartsPage', () => {
     expect(html).toContain('Token usage');
     expect(html).toContain('Cumulative token usage');
     expect(html).toContain('Cost');
+    expect(html).toContain('Cumulative cost');
     expect(html).toContain('TPM');
     expect(html).toContain('Missing model prices');
     expect(html).toContain('unknown-model');
@@ -194,6 +195,8 @@ describe('MonitoringChartsPage', () => {
       if (!match) throw new Error(`Select not found: ${ariaLabel}`);
       return match;
     };
+    const hasSelectByLabel = (ariaLabel: string) =>
+      renderer!.root.findAllByType(Select).some((node) => node.props.ariaLabel === ariaLabel);
 
     expect(latestParams()).toEqual({ range: '1h', granularity: '10m' });
 
@@ -224,11 +227,24 @@ describe('MonitoringChartsPage', () => {
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });
+    expect(hasSelectByLabel('Provider')).toBe(false);
+
+    act(() => {
+      selectByLabel('Chart dimension').props.onChange('apiKey');
+    });
+    expect(hasSelectByLabel('API key')).toBe(false);
+    expect(hasSelectByLabel('Provider')).toBe(true);
+
+    act(() => {
+      selectByLabel('Chart dimension').props.onChange('model');
+    });
+    expect(hasSelectByLabel('Model')).toBe(false);
+    expect(hasSelectByLabel('API key')).toBe(true);
 
     renderer!.unmount();
   });
 
-  it('renders four full-page chart panels', () => {
+  it('renders token and cost chart tabs with three visible chart panels', () => {
     vi.mocked(useUsageCharts).mockReturnValue(createHookState({ charts: createChartsResponse() }));
 
     let renderer: ReactTestRenderer;
@@ -236,11 +252,32 @@ describe('MonitoringChartsPage', () => {
       renderer = create(<MonitoringChartsPage />);
     });
 
-    expect(renderer!.root.findAllByType(EChartPanel)).toHaveLength(4);
+    expect(renderer!.root.findAllByType(EChartPanel)).toHaveLength(3);
+    expect(renderer!.root.findAll((node) => node.props.role === 'tab')).toHaveLength(4);
+
+    const chartOptions = () => renderer!.root.findAllByType(EChartPanel).map((node) => node.props.option);
+    expect(chartOptions()[0].series[0].data).toEqual([100]);
+    expect(chartOptions()[1].series[0].data).toEqual([0.04]);
+
+    const cumulativeTokenTab = renderer!.root
+      .findAll((node) => node.props.role === 'tab')
+      .find((node) => node.props.children === 'Cumulative token usage');
+    const cumulativeCostTab = renderer!.root
+      .findAll((node) => node.props.role === 'tab')
+      .find((node) => node.props.children === 'Cumulative cost');
+    if (!cumulativeTokenTab || !cumulativeCostTab) throw new Error('Cumulative tabs not found');
+
+    act(() => {
+      cumulativeTokenTab.props.onClick();
+      cumulativeCostTab.props.onClick();
+    });
+
+    expect(chartOptions()[0].title.text).toBe('Cumulative token usage');
+    expect(chartOptions()[1].title.text).toBe('Cumulative cost');
     renderer!.unmount();
   });
 
-  it('switches the four charts to the selected dimension series', () => {
+  it('switches the three visible charts to the selected dimension series', () => {
     vi.mocked(useUsageCharts).mockImplementation(() =>
       createHookState({
         charts: createChartsResponse({
@@ -266,9 +303,8 @@ describe('MonitoringChartsPage', () => {
 
     const chartOptions = renderer!.root.findAllByType(EChartPanel).map((node) => node.props.option);
     expect(chartOptions[0].series[0].name).toBe('Team Codex input tokens');
-    expect(chartOptions[1].series[0].name).toBe('Team Codex input tokens');
-    expect(chartOptions[2].series[0].name).toBe('Team Codex');
-    expect(chartOptions[3].series[0].name).toBe('Team Codex input TPM');
+    expect(chartOptions[1].series[0].name).toBe('Team Codex');
+    expect(chartOptions[2].series[0].name).toBe('Team Codex input TPM');
     renderer!.unmount();
   });
 });

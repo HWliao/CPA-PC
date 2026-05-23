@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { EChartsCoreOption } from 'echarts/core';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -23,13 +24,24 @@ import {
   type UsageChartsFilterState,
 } from '@/features/monitoring/charts/filters';
 import { useUsageCharts } from '@/features/monitoring/charts/useUsageCharts';
-import type { UsageChartSeries, UsageChartsRange } from '@/services/api/usageService';
+import type { UsageChartMetricBucket, UsageChartSeries, UsageChartsRange } from '@/services/api/usageService';
 import { formatUsd } from '@/utils/usage';
 import styles from './MonitoringChartsPage.module.scss';
+
+type TokenChartFamily = Extract<UsageChartMetricFamily, 'tokens' | 'cumulativeTokens'>;
+type CostChartFamily = Extract<UsageChartMetricFamily, 'cost' | 'cumulativeCost'>;
+
+type ChartDefinition = {
+  description: string;
+  family: UsageChartMetricFamily;
+  title: string;
+};
 
 export function MonitoringChartsPage() {
   const { t, i18n } = useTranslation();
   const [filterState, setFilterState] = useState(createDefaultUsageChartsFilterState);
+  const [activeTokenChart, setActiveTokenChart] = useState<TokenChartFamily>('tokens');
+  const [activeCostChart, setActiveCostChart] = useState<CostChartFamily>('cost');
   const chartParams = useMemo(() => buildUsageChartsQueryParams(filterState), [filterState]);
   const { charts, loading, error, lastRefreshedAt, usageServiceAvailable, loadCharts } =
     useUsageCharts(chartParams);
@@ -88,41 +100,49 @@ export function MonitoringChartsPage() {
     model: modelSeries,
   });
   const hasActiveChartData = filterState.dimension === 'global' ? hasGlobalUsageValues : activeSeries.length > 0;
-  const providerFilterDisabled = shouldDisableUsageChartsFilter('provider', filterState.dimension);
-  const apiKeyFilterDisabled = shouldDisableUsageChartsFilter('apiKey', filterState.dimension);
-  const modelFilterDisabled = shouldDisableUsageChartsFilter('model', filterState.dimension);
-  const metricCharts: Array<{ family: UsageChartMetricFamily; title: string; description: string }> = [
-    {
-      family: 'tokens',
-      title: t('monitoring.charts_tokens_title', { defaultValue: 'Token usage' }),
-      description: t('monitoring.charts_tokens_desc', {
-        defaultValue: 'Input, output, and cached tokens by bucket.',
-      }),
-    },
-    {
-      family: 'cumulativeTokens',
-      title: t('monitoring.charts_cumulative_tokens_title', {
-        defaultValue: 'Cumulative token usage',
-      }),
-      description: t('monitoring.charts_cumulative_tokens_desc', {
-        defaultValue: 'Running input, output, and cached token totals over time.',
-      }),
-    },
-    {
-      family: 'cost',
-      title: t('monitoring.charts_cost_title', { defaultValue: 'Cost' }),
-      description: t('monitoring.charts_cost_desc', {
-        defaultValue: 'Estimated spend by bucket based on configured model prices.',
-      }),
-    },
-    {
-      family: 'tpm',
-      title: t('monitoring.charts_tpm_title', { defaultValue: 'TPM' }),
-      description: t('monitoring.charts_tpm_desc', {
-        defaultValue: 'Input, output, and cached tokens per minute.',
-      }),
-    },
-  ];
+  const showProviderFilter = !shouldDisableUsageChartsFilter('provider', filterState.dimension);
+  const showApiKeyFilter = !shouldDisableUsageChartsFilter('apiKey', filterState.dimension);
+  const showModelFilter = !shouldDisableUsageChartsFilter('model', filterState.dimension);
+  const tokenUsageChart: ChartDefinition = {
+    family: 'tokens',
+    title: t('monitoring.charts_tokens_title', { defaultValue: 'Token usage' }),
+    description: t('monitoring.charts_tokens_desc', {
+      defaultValue: 'Input, output, and cached tokens by bucket.',
+    }),
+  };
+  const cumulativeTokenUsageChart: ChartDefinition = {
+    family: 'cumulativeTokens',
+    title: t('monitoring.charts_cumulative_tokens_title', {
+      defaultValue: 'Cumulative token usage',
+    }),
+    description: t('monitoring.charts_cumulative_tokens_desc', {
+      defaultValue: 'Running input, output, and cached token totals over time.',
+    }),
+  };
+  const costUsageChart: ChartDefinition = {
+    family: 'cost',
+    title: t('monitoring.charts_cost_title', { defaultValue: 'Cost' }),
+    description: t('monitoring.charts_cost_desc', {
+      defaultValue: 'Estimated spend by bucket based on configured model prices.',
+    }),
+  };
+  const cumulativeCostUsageChart: ChartDefinition = {
+    family: 'cumulativeCost',
+    title: t('monitoring.charts_cumulative_cost_title', { defaultValue: 'Cumulative cost' }),
+    description: t('monitoring.charts_cumulative_cost_desc', {
+      defaultValue: 'Running estimated spend totals over time.',
+    }),
+  };
+  const tpmUsageChart: ChartDefinition = {
+    family: 'tpm',
+    title: t('monitoring.charts_tpm_title', { defaultValue: 'TPM' }),
+    description: t('monitoring.charts_tpm_desc', {
+      defaultValue: 'Input, output, and cached tokens per minute.',
+    }),
+  };
+  const activeTokenChartDefinition =
+    activeTokenChart === 'tokens' ? tokenUsageChart : cumulativeTokenUsageChart;
+  const activeCostChartDefinition = activeCostChart === 'cost' ? costUsageChart : cumulativeCostUsageChart;
   const statusTone = error ? 'bad' : loading ? 'info' : usageServiceAvailable ? 'good' : 'warn';
   const statusLabel = error
     ? t('monitoring.charts_status_error', { defaultValue: 'Chart load failed' })
@@ -224,51 +244,39 @@ export function MonitoringChartsPage() {
               onChange={handleDimensionChange}
             />
           </div>
-          <div className={styles.filterField}>
-            <span>{t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}</span>
-            <Select
-              ariaLabel={t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}
-              value={filterState.provider}
-              options={providerOptions}
-              onChange={handleFilterChange('provider')}
-              disabled={providerFilterDisabled}
-            />
-            {providerFilterDisabled ? (
-              <small className={styles.filterHint}>
-                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
-              </small>
-            ) : null}
-          </div>
-          <div className={styles.filterField}>
-            <span>{t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}</span>
-            <Select
-              ariaLabel={t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}
-              value={filterState.apiKeyHash}
-              options={apiKeyOptions}
-              onChange={handleFilterChange('apiKeyHash')}
-              disabled={apiKeyFilterDisabled}
-            />
-            {apiKeyFilterDisabled ? (
-              <small className={styles.filterHint}>
-                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
-              </small>
-            ) : null}
-          </div>
-          <div className={styles.filterField}>
-            <span>{t('monitoring.charts_model_label', { defaultValue: 'Model' })}</span>
-            <Select
-              ariaLabel={t('monitoring.charts_model_label', { defaultValue: 'Model' })}
-              value={filterState.model}
-              options={modelOptions}
-              onChange={handleFilterChange('model')}
-              disabled={modelFilterDisabled}
-            />
-            {modelFilterDisabled ? (
-              <small className={styles.filterHint}>
-                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
-              </small>
-            ) : null}
-          </div>
+          {showProviderFilter ? (
+            <div className={styles.filterField}>
+              <span>{t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}</span>
+              <Select
+                ariaLabel={t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}
+                value={filterState.provider}
+                options={providerOptions}
+                onChange={handleFilterChange('provider')}
+              />
+            </div>
+          ) : null}
+          {showApiKeyFilter ? (
+            <div className={styles.filterField}>
+              <span>{t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}</span>
+              <Select
+                ariaLabel={t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}
+                value={filterState.apiKeyHash}
+                options={apiKeyOptions}
+                onChange={handleFilterChange('apiKeyHash')}
+              />
+            </div>
+          ) : null}
+          {showModelFilter ? (
+            <div className={styles.filterField}>
+              <span>{t('monitoring.charts_model_label', { defaultValue: 'Model' })}</span>
+              <Select
+                ariaLabel={t('monitoring.charts_model_label', { defaultValue: 'Model' })}
+                value={filterState.model}
+                options={modelOptions}
+                onChange={handleFilterChange('model')}
+              />
+            </div>
+          ) : null}
         </div>
       </Card>
 
@@ -355,37 +363,143 @@ export function MonitoringChartsPage() {
             </Card>
           ) : (
             <section className={styles.chartGrid}>
-              {metricCharts.map((chart) => (
-                <Card key={chart.family} className={styles.chartCard}>
-                  <div className={styles.chartHeader}>
-                    <h2>{chart.title}</h2>
-                    <span>{`${activeDimensionLabel}: ${chart.description}`}</span>
-                  </div>
-                  <EChartPanel
-                    ariaLabel={`${activeDimensionLabel} ${chart.title}`}
-                    className={styles.chartCanvas}
-                    option={
-                      filterState.dimension === 'global'
-                        ? buildGlobalUsageChartOption({
-                            title: chart.title,
-                            family: chart.family,
-                            buckets: globalBuckets,
-                          })
-                        : buildSeriesUsageChartOption({
-                            title: chart.title,
-                            family: chart.family,
-                            series: activeSeries,
-                          })
-                    }
-                  />
-                </Card>
-              ))}
+              <UsageMetricChartCard
+                activeDimensionLabel={activeDimensionLabel}
+                chart={activeTokenChartDefinition}
+                groupKey="tokens"
+                onSelectTab={(family) => setActiveTokenChart(family as TokenChartFamily)}
+                option={buildUsageChartOption(
+                  activeTokenChartDefinition,
+                  filterState.dimension,
+                  globalBuckets,
+                  activeSeries
+                )}
+                tabs={[tokenUsageChart, cumulativeTokenUsageChart]}
+              />
+              <UsageMetricChartCard
+                activeDimensionLabel={activeDimensionLabel}
+                chart={activeCostChartDefinition}
+                groupKey="cost"
+                onSelectTab={(family) => setActiveCostChart(family as CostChartFamily)}
+                option={buildUsageChartOption(
+                  activeCostChartDefinition,
+                  filterState.dimension,
+                  globalBuckets,
+                  activeSeries
+                )}
+                tabs={[costUsageChart, cumulativeCostUsageChart]}
+              />
+              <UsageMetricChartCard
+                activeDimensionLabel={activeDimensionLabel}
+                chart={tpmUsageChart}
+                groupKey="tpm"
+                option={buildUsageChartOption(tpmUsageChart, filterState.dimension, globalBuckets, activeSeries)}
+              />
             </section>
           )}
         </>
       )}
     </div>
   );
+}
+
+interface UsageMetricChartCardProps {
+  activeDimensionLabel: string;
+  chart: ChartDefinition;
+  groupKey: string;
+  onSelectTab?: (family: UsageChartMetricFamily) => void;
+  option: EChartsCoreOption;
+  tabs?: ChartDefinition[];
+}
+
+function UsageMetricChartCard({
+  activeDimensionLabel,
+  chart,
+  groupKey,
+  onSelectTab,
+  option,
+  tabs = [chart],
+}: UsageMetricChartCardProps) {
+  const hasTabs = tabs.length > 1;
+  const panelId = `usage-chart-panel-${groupKey}`;
+  const activeTabId = `usage-chart-tab-${groupKey}-${chart.family}`;
+
+  return (
+    <Card className={styles.chartCard}>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitleGroup}>
+          <h2>{chart.title}</h2>
+          <span>{`${activeDimensionLabel}: ${chart.description}`}</span>
+        </div>
+        {hasTabs ? (
+          <div
+            aria-label={`${activeDimensionLabel} ${chart.title}`}
+            className={styles.chartTabs}
+            role="tablist"
+          >
+            {tabs.map((tab) => {
+              const active = tab.family === chart.family;
+              return (
+                <button
+                  key={tab.family}
+                  aria-controls={panelId}
+                  aria-selected={active}
+                  className={`${styles.chartTab} ${active ? styles.chartTabActive : ''}`}
+                  id={`usage-chart-tab-${groupKey}-${tab.family}`}
+                  onClick={() => onSelectTab?.(tab.family)}
+                  role="tab"
+                  tabIndex={active ? 0 : -1}
+                  type="button"
+                >
+                  {tab.title}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+      {hasTabs ? (
+        <div aria-labelledby={activeTabId} className={styles.chartPanel} id={panelId} role="tabpanel">
+          <EChartPanel
+            key={chart.family}
+            ariaLabel={`${activeDimensionLabel} ${chart.title}`}
+            className={styles.chartCanvas}
+            option={option}
+          />
+        </div>
+      ) : (
+        <div className={styles.chartPanel}>
+          <EChartPanel
+            key={chart.family}
+            ariaLabel={`${activeDimensionLabel} ${chart.title}`}
+            className={styles.chartCanvas}
+            option={option}
+          />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function buildUsageChartOption(
+  chart: ChartDefinition,
+  dimension: UsageChartsDimension,
+  globalBuckets: UsageChartMetricBucket[],
+  activeSeries: UsageChartSeries[]
+): EChartsCoreOption {
+  if (dimension === 'global') {
+    return buildGlobalUsageChartOption({
+      title: chart.title,
+      family: chart.family,
+      buckets: globalBuckets,
+    });
+  }
+
+  return buildSeriesUsageChartOption({
+    title: chart.title,
+    family: chart.family,
+    series: activeSeries,
+  });
 }
 
 function resolveActiveDimensionSeries(

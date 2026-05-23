@@ -1370,6 +1370,8 @@
     "charts_cumulative_tokens_desc": "Накопленные итоги input, output и cached tokens по времени.",
     "charts_cost_title": "Cost",
     "charts_cost_desc": "Оценочная стоимость по бакетам на основе настроенных цен моделей.",
+    "charts_cumulative_cost_title": "Накопленная стоимость",
+    "charts_cumulative_cost_desc": "Накопленная оценочная стоимость по времени.",
     "charts_tpm_title": "TPM",
     "charts_tpm_desc": "Input, output и cached tokens в минуту.",
     "charts_dimension_empty_title": "Нет серий этого измерения",

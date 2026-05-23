@@ -13,7 +13,7 @@ Status: Spec confirmed. Implementation is on hold until the user explicitly asks
 
 ## Objective
 
-Build a new monitoring charts page for local CPA-PC users who already use the Request Monitoring page. The feature fills the current monitoring gap: request data is available in summaries and tables, but there is no time-series visualization for token, cumulative token, cost, and TPM trends.
+Build a new monitoring charts page for local CPA-PC users who already use the Request Monitoring page. The feature fills the current monitoring gap: request data is available in summaries and tables, but there is no time-series visualization for token, cumulative token, cost, cumulative cost, and TPM trends.
 
 Target users:
 
@@ -23,7 +23,7 @@ Target users:
 User stories:
 
 - As a local user, I can open a chart page from Request Monitoring next to the Codex account inspection entry.
-- As a local user, I can inspect per-bucket token usage, cumulative token usage, estimated cost, and TPM trends over fixed recent windows.
+- As a local user, I can inspect per-bucket token usage, cumulative token usage, estimated cost, cumulative cost, and TPM trends over fixed recent windows.
 - As a local user, I can narrow charts by provider/auth-file identity, client API key, and model.
 - As a local user, I can compare the same metrics globally and by provider, API-key, and model dimensions.
 
@@ -37,8 +37,9 @@ Acceptance criteria:
 - Filters are supported and combinable: provider (including auth-file identity), client API key, and model.
 - Charts are ECharts line charts and render loading, error, and empty states.
 - The charts page visually fits beside the existing monitoring and Codex inspection pages instead of introducing a separate dashboard style.
-- The chart page shows exactly four full-width charts: token usage, cumulative token usage, cost, and TPM.
-- A dimension selector switches those three charts between global total, provider, API-key, and model series.
+- The chart page shows three full-width chart rows: token usage with a cumulative-token tab, cost with a cumulative-cost tab, and TPM.
+- A dimension selector switches those chart rows between global total, provider, API-key, and model series.
+- When a filter is already used as the chart series dimension, that filter control is hidden instead of disabled.
 - Provider, API-key, and model dimensions display all matching series without Top N limiting or `Other` aggregation.
 - Cost uses model prices from local SQLite `model_prices`; models without prices are treated as zero-cost and reported to the frontend for user visibility.
 - Data source is local SQLite only. No external collector, service, queue, or database is introduced.
@@ -234,6 +235,7 @@ Metric definitions:
 
 - `inputTokens`, `outputTokens`, and `cachedTokens` are bucket totals from `usage_events`.
 - Cumulative token charts are frontend running totals over returned buckets for input, output, and cached tokens.
+- Cumulative cost charts are frontend running totals over returned `totalCost` buckets.
 - `totalCost` is calculated from `model_prices` per model: prompt cost uses `max(inputTokens - cachedTokens, 0)`, cache cost uses `cachedTokens`, and completion cost uses `outputTokens`, all priced per 1M tokens.
 - TPM values are per-bucket average tokens per minute: `bucketTokenTotal / bucketMinutes`, where `bucketMinutes` is the actual overlap between the bucket and selected range.
 - Provider series are grouped by auth-file identity when available, otherwise by provider, and labeled with auth/account/file snapshots when available.
@@ -316,7 +318,7 @@ Backend route tests:
 Frontend unit tests:
 
 - API client builds correct query parameters and sends the management bearer token.
-- Chart option builders generate expected line series for token, cumulative token, cost, and TPM charts.
+- Chart option builders generate expected line series for token, cumulative token, cost, cumulative cost, and TPM charts.
 - Filter option helpers preserve aliases/masked labels and do not expose raw API keys.
 - `MonitoringChartsPage` renders default 1h state, loading, empty, error, and data states.
 - Changing filters/range/dimension triggers a reload with the expected params.
@@ -374,7 +376,7 @@ Never:
 - This spec is reviewed and implementation starts only after the user explicitly asks to proceed.
 - `/monitoring/charts` is reachable from `/monitoring` via an entry beside Codex account inspection.
 - The chart page supports exactly the required ranges, linked granularity, filters, and dimensions.
-- The chart page displays exactly four time-series line charts for token usage, cumulative token usage, cost, and TPM, split by the selected dimension.
+- The chart page displays three full-width time-series chart rows: token usage/cumulative token tabs, cost/cumulative cost tabs, and TPM, split by the selected dimension.
 - Backend chart data comes from local SQLite and uses model prices for cost calculation.
 - Frontend unit tests, backend unit tests, lint, type-check, and build pass.
 - Existing request monitoring behavior and existing usage endpoints are not regressed.

@@ -68,7 +68,7 @@
 
 .filterGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -284,21 +284,87 @@
 }
 
 .chartHeader {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.chartHeader h2 {
+.chartTitleGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chartTitleGroup h2 {
   margin: 0;
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 700;
 }
 
-.chartHeader span {
+.chartTitleGroup span {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.chartTabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border-color) 84%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-tertiary) 88%, transparent);
+  scrollbar-width: none;
+}
+
+.chartTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.chartTab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 9px 12px;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.chartTab:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.chartTab:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.chartTabActive,
+.chartTabActive:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.32);
+}
+
+.chartPanel {
+  min-width: 0;
 }
 
 .chartCanvas {

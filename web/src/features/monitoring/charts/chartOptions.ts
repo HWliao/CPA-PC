@@ -1,7 +1,7 @@
 import type { EChartsCoreOption } from 'echarts/core';
 import type { UsageChartMetricBucket, UsageChartSeries } from '@/services/api/usageService';
 
-export type UsageChartMetricFamily = 'tokens' | 'cumulativeTokens' | 'cost' | 'tpm';
+export type UsageChartMetricFamily = 'tokens' | 'cumulativeTokens' | 'cost' | 'cumulativeCost' | 'tpm';
 
 type UsageChartMetricKey = Extract<
   keyof UsageChartMetricBucket,
@@ -49,6 +49,7 @@ const METRICS_BY_FAMILY: Record<UsageChartMetricFamily, MetricDefinition[]> = {
     { key: 'cachedTokens', label: 'Cached tokens', suffixLabel: 'cached tokens' },
   ],
   cost: [{ key: 'totalCost', label: 'Cost' }],
+  cumulativeCost: [{ key: 'totalCost', label: 'Cost' }],
   tpm: [
     { key: 'tpmInput', label: 'Input TPM', suffixLabel: 'input TPM' },
     { key: 'tpmOutput', label: 'Output TPM', suffixLabel: 'output TPM' },
@@ -60,6 +61,7 @@ const Y_AXIS_NAME_BY_FAMILY: Record<UsageChartMetricFamily, string> = {
   tokens: 'Tokens',
   cumulativeTokens: 'Tokens',
   cost: 'USD',
+  cumulativeCost: 'USD',
   tpm: 'TPM',
 };
 
@@ -158,7 +160,7 @@ export function buildGlobalUsageChartOption({
   buckets,
 }: BuildGlobalUsageChartOptionInput): EChartsCoreOption {
   const metrics = METRICS_BY_FAMILY[family];
-  const cumulative = family === 'cumulativeTokens';
+  const cumulative = isCumulativeFamily(family);
   return buildBaseLineChartOption({
     title,
     labels: buckets.map((bucket) => bucket.label),
@@ -176,7 +178,7 @@ export function buildSeriesUsageChartOption({
   series,
 }: BuildSeriesUsageChartOptionInput): EChartsCoreOption {
   const metrics = METRICS_BY_FAMILY[family];
-  const cumulative = family === 'cumulativeTokens';
+  const cumulative = isCumulativeFamily(family);
   const labelsSource = series.find((item) => item.buckets.length > 0)?.buckets ?? [];
   const startMsValues = labelsSource.map((bucket) => bucket.startMs);
 
@@ -196,4 +198,8 @@ export function buildSeriesUsageChartOption({
       }));
     }),
   });
+}
+
+function isCumulativeFamily(family: UsageChartMetricFamily): boolean {
+  return family === 'cumulativeTokens' || family === 'cumulativeCost';
 }

@@ -122,6 +122,26 @@ describe('usage chart option builders', () => {
     ]);
   });
 
+  it('builds cumulative cost totals across buckets', () => {
+    const option = asTestOption(
+      buildGlobalUsageChartOption({
+        title: 'Cumulative cost',
+        family: 'cumulativeCost',
+        buckets: [
+          makeBucket({ label: '10:00', totalCost: 0.12 }),
+          makeBucket({ label: '10:10', totalCost: 0.24 }),
+          makeBucket({ label: '10:20', totalCost: 0.04 }),
+        ],
+      })
+    );
+
+    expect(option.yAxis).toMatchObject({ name: 'USD' });
+    expect(option.series?.[0]?.name).toBe('Cost');
+    expect(option.series?.[0]?.data?.[0]).toBeCloseTo(0.12);
+    expect(option.series?.[0]?.data?.[1]).toBeCloseTo(0.36);
+    expect(option.series?.[0]?.data?.[2]).toBeCloseTo(0.4);
+  });
+
   it('aligns sparse series buckets by timestamp', () => {
     const series: UsageChartSeries[] = [
       {
@@ -206,5 +226,26 @@ describe('usage chart option builders', () => {
     expect(option.series?.[0]?.data).toEqual([100, 175]);
     expect(option.series?.[1]?.data).toEqual([40, 70]);
     expect(option.series?.[2]?.data).toEqual([20, 30]);
+  });
+
+  it('builds cumulative cost totals per dimension series', () => {
+    const option = asTestOption(
+      buildSeriesUsageChartOption({
+        title: 'Cumulative cost by provider',
+        family: 'cumulativeCost',
+        series: [
+          {
+            key: 'auth:2',
+            label: 'Team Codex',
+            buckets: [
+              makeBucket({ startMs: 1000, label: '10:00', totalCost: 0.12 }),
+              makeBucket({ startMs: 2000, label: '10:10', totalCost: 0.08 }),
+            ],
+          },
+        ],
+      })
+    );
+
+    expect(option.series).toEqual([expect.objectContaining({ name: 'Team Codex', data: [0.12, 0.2] })]);
   });
 });

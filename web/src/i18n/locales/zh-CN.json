@@ -1375,6 +1375,8 @@
     "charts_cumulative_tokens_desc": "按时间展示输入、输出和缓存 Token 的累计总量。",
     "charts_cost_title": "Cost",
     "charts_cost_desc": "基于已配置模型单价按时间桶估算花费。",
+    "charts_cumulative_cost_title": "累计 Cost",
+    "charts_cumulative_cost_desc": "按时间展示预估花费累计总量。",
     "charts_tpm_title": "TPM",
     "charts_tpm_desc": "输入、输出和缓存 Token 每分钟速率。",
     "charts_dimension_empty_title": "暂无该维度序列",

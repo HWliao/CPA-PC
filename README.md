@@ -12,7 +12,7 @@ CPA-PC 是面向个人 Windows PC 的 CLI Proxy API 单体应用。它通过 CLI
 - 本地 Management UI：通过 `http://127.0.0.1:8317/management.html` 管理基础配置、API Keys、AI Providers、Auth Files、OAuth、Quota、日志和系统信息。
 - 请求监控：内置本地 usage API，使用 `data/usage.sqlite` 持久化请求、token、cost、TPM、API-key alias 和模型单价等监控数据。
 - 监控图表：提供 `/monitoring/charts` 页面，支持最近 1 小时、5 小时、24 小时、7 天固定窗口；粒度随范围联动为 10 分钟、小时或天。
-- 多维度图表：支持全局总量、Provider、API-key 和模型维度，展示 token 用量、累计 token 用量、cost 和 TPM 四类整行趋势图。
+- 多维度图表：支持全局总量、Provider、API-key 和模型维度，展示 token 用量/累计 token、cost/累计 cost 和 TPM 趋势；token 与 cost 图在同一行内用 tab 切换合计与累计视图。
 - 安全展示：API-key 图表和筛选项只展示 alias 或哈希前缀，不展示原始 API key；模型无单价时按 0 cost 处理并在页面提示。
 - 本地接口：提供 `/healthz`、`/cpa-pc/info`、`/v0/management/usage*`、模型单价和 API-key alias 等 CPA-PC 扩展接口。
 - 外置配置：使用 `config.yaml`/`config.example.yaml` 管理运行配置，数据、日志、静态资源和 usage DB 路径相对配置文件解析。
