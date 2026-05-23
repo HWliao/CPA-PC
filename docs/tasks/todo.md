@@ -158,16 +158,16 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Add the required fixed time ranges, hour/day granularity, and provider/auth-file/API-key/model filters. Changing any control reloads the chart endpoint and updates the page state.
 
 **Acceptance criteria:**
-- [ ] Range options are exactly last 1 hour, last 5 hours, last 24 hours, and last 7 days.
-- [ ] Last 1 hour is the default range.
-- [ ] Hour is the default granularity for 1h/5h/24h; day is the default for 7d.
-- [ ] No custom time range UI exists.
-- [ ] Provider, auth-file, API-key, and model filters are populated from response options and can be combined.
+- [x] Range options are exactly last 1 hour, last 5 hours, last 24 hours, and last 7 days.
+- [x] Last 1 hour is the default range.
+- [x] Hour is the default granularity for 1h/5h/24h; day is the default for 7d.
+- [x] No custom time range UI exists.
+- [x] Provider, auth-file, API-key, and model filters are populated from response options and can be combined.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
-- [ ] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
-- [ ] Page tests verify reload params after changing range, granularity, and filters.
+- [x] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
+- [x] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
+- [x] Page tests verify reload params after changing range, granularity, and filters.
 
 **Dependencies:** Task 6.
 

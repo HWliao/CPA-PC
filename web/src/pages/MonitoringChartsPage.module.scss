@@ -45,6 +45,45 @@
   gap: 16px;
 }
 
+.filterPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.filterHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.filterHeader strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.filterHeader span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.filterField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filterField > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .statusBar {
   display: flex;
   align-items: center;
@@ -276,6 +315,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .warningPanel {
     flex-direction: column;
   }
@@ -290,6 +333,7 @@
 }
 
 @container monitoring-charts-page (max-width: 520px) {
+  .filterGrid,
   .summaryGrid {
     grid-template-columns: 1fr;
   }

@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
+import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Select } from '@/components/ui/Select';
 import { mainRoutes } from '@/router/MainRoutes';
 import { useUsageCharts, type UseUsageChartsReturn } from '@/features/monitoring/charts/useUsageCharts';
 import type { UsageChartsResponse } from '@/services/api/usageService';
@@ -49,10 +51,10 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
   bucketMs: 3600000,
   filters: {},
   options: {
-    providers: [],
-    authFiles: [],
-    apiKeys: [],
-    models: [],
+    providers: ['openai'],
+    authFiles: [{ authIndex: '2', label: 'Team Codex', provider: 'openai' }],
+    apiKeys: [{ apiKeyHash: 'hash-1', label: 'Build key' }],
+    models: ['gpt-5'],
   },
   global: {
     buckets: [
@@ -118,5 +120,53 @@ describe('MonitoringChartsPage', () => {
     expect(html).toContain('Global TPM');
     expect(html).toContain('Missing model prices');
     expect(html).toContain('unknown-model');
+  });
+
+  it('passes range, granularity, and filters to the chart loader', () => {
+    vi.mocked(useUsageCharts).mockImplementation(() =>
+      createHookState({ charts: createChartsResponse() })
+    );
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<MonitoringChartsPage />);
+    });
+
+    const latestParams = () => {
+      const calls = vi.mocked(useUsageCharts).mock.calls;
+      return calls[calls.length - 1]?.[0];
+    };
+    const selectByLabel = (ariaLabel: string) => {
+      const match = renderer!.root
+        .findAllByType(Select)
+        .find((node) => node.props.ariaLabel === ariaLabel);
+      if (!match) throw new Error(`Select not found: ${ariaLabel}`);
+      return match;
+    };
+
+    expect(latestParams()).toEqual({ range: '1h', granularity: 'hour' });
+
+    act(() => {
+      selectByLabel('Time range').props.onChange('7d');
+    });
+    expect(latestParams()).toEqual({ range: '7d', granularity: 'day' });
+
+    act(() => {
+      selectByLabel('Granularity').props.onChange('hour');
+      selectByLabel('Provider').props.onChange('openai');
+      selectByLabel('Auth file').props.onChange('2');
+      selectByLabel('API key').props.onChange('hash-1');
+      selectByLabel('Model').props.onChange('gpt-5');
+    });
+    expect(latestParams()).toEqual({
+      range: '7d',
+      granularity: 'hour',
+      provider: 'openai',
+      authIndex: '2',
+      apiKeyHash: 'hash-1',
+      model: 'gpt-5',
+    });
+
+    renderer!.unmount();
   });
 });

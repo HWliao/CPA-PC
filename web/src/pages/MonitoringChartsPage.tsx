@@ -1,24 +1,32 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Select } from '@/components/ui/Select';
 import { IconChartLine, IconExternalLink, IconRefreshCw } from '@/components/ui/icons';
 import { EChartPanel } from '@/features/monitoring/charts/EChartPanel';
 import { buildGlobalUsageChartOption } from '@/features/monitoring/charts/chartOptions';
+import {
+  USAGE_CHART_GRANULARITY_OPTIONS,
+  USAGE_CHART_RANGE_OPTIONS,
+  buildUsageChartsQueryParams,
+  createDefaultUsageChartsFilterState,
+  resolveDefaultUsageChartsGranularity,
+  type UsageChartsFilterState,
+} from '@/features/monitoring/charts/filters';
 import { useUsageCharts } from '@/features/monitoring/charts/useUsageCharts';
+import type { UsageChartsGranularity, UsageChartsRange } from '@/services/api/usageService';
 import { formatCompactNumber, formatUsd } from '@/utils/usage';
 import styles from './MonitoringChartsPage.module.scss';
 
-const DEFAULT_CHART_PARAMS = {
-  range: '1h',
-  granularity: 'hour',
-} as const;
-
 export function MonitoringChartsPage() {
   const { t, i18n } = useTranslation();
+  const [filterState, setFilterState] = useState(createDefaultUsageChartsFilterState);
+  const chartParams = useMemo(() => buildUsageChartsQueryParams(filterState), [filterState]);
   const { charts, loading, error, lastRefreshedAt, usageServiceAvailable, loadCharts } =
-    useUsageCharts(DEFAULT_CHART_PARAMS);
+    useUsageCharts(chartParams);
 
   const globalBuckets = charts?.global.buckets ?? [];
   const globalBucketCount = globalBuckets.length;
@@ -39,6 +47,22 @@ export function MonitoringChartsPage() {
         charts.byModel.series.length > 0)
   );
   const missingPriceModels = charts?.missingPriceModels ?? [];
+  const providerOptions = [
+    { value: '', label: t('monitoring.charts_filter_all_providers', { defaultValue: 'All providers' }) },
+    ...(charts?.options.providers ?? []).map((provider) => ({ value: provider, label: provider })),
+  ];
+  const authFileOptions = [
+    { value: '', label: t('monitoring.charts_filter_all_auth_files', { defaultValue: 'All auth files' }) },
+    ...(charts?.options.authFiles ?? []).map((item) => ({ value: item.authIndex, label: item.label })),
+  ];
+  const apiKeyOptions = [
+    { value: '', label: t('monitoring.charts_filter_all_api_keys', { defaultValue: 'All API keys' }) },
+    ...(charts?.options.apiKeys ?? []).map((item) => ({ value: item.apiKeyHash, label: item.label })),
+  ];
+  const modelOptions = [
+    { value: '', label: t('monitoring.charts_filter_all_models', { defaultValue: 'All models' }) },
+    ...(charts?.options.models ?? []).map((model) => ({ value: model, label: model })),
+  ];
   const globalTokenTitle = t('monitoring.charts_global_tokens', { defaultValue: 'Global tokens' });
   const globalCostTitle = t('monitoring.charts_global_cost', { defaultValue: 'Global cost' });
   const globalTpmTitle = t('monitoring.charts_global_tpm', { defaultValue: 'Global TPM' });
@@ -50,6 +74,22 @@ export function MonitoringChartsPage() {
       : usageServiceAvailable
         ? t('monitoring.charts_status_ready', { defaultValue: 'Charts ready' })
         : t('monitoring.charts_status_unavailable', { defaultValue: 'Usage service unavailable' });
+
+  const handleRangeChange = (value: string) => {
+    const range = value as UsageChartsRange;
+    setFilterState((current) => ({
+      ...current,
+      range,
+      granularity: resolveDefaultUsageChartsGranularity(range),
+    }));
+  };
+  const handleGranularityChange = (value: string) => {
+    setFilterState((current) => ({ ...current, granularity: value as UsageChartsGranularity }));
+  };
+  const handleFilterChange = (key: keyof Pick<UsageChartsFilterState, 'provider' | 'authIndex' | 'apiKeyHash' | 'model'>) =>
+    (value: string) => {
+      setFilterState((current) => ({ ...current, [key]: value }));
+    };
 
   return (
     <div className={styles.page}>
@@ -93,6 +133,79 @@ export function MonitoringChartsPage() {
               <IconRefreshCw size={14} />
               <span>{t('usage_stats.refresh')}</span>
             </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card className={`${styles.panel} ${styles.filterPanel}`}>
+        <div className={styles.filterHeader}>
+          <strong>{t('monitoring.charts_controls_title', { defaultValue: 'Chart controls' })}</strong>
+          <span>
+            {t('monitoring.charts_controls_desc', {
+              defaultValue: 'Choose a fixed time range and combine dimensions to reload the chart data.',
+            })}
+          </span>
+        </div>
+        <div className={styles.filterGrid}>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_range_label', { defaultValue: 'Time range' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_range_label', { defaultValue: 'Time range' })}
+              value={filterState.range}
+              options={USAGE_CHART_RANGE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey, { defaultValue: option.defaultLabel }),
+              }))}
+              onChange={handleRangeChange}
+            />
+          </div>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_granularity_label', { defaultValue: 'Granularity' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_granularity_label', { defaultValue: 'Granularity' })}
+              value={filterState.granularity}
+              options={USAGE_CHART_GRANULARITY_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey, { defaultValue: option.defaultLabel }),
+              }))}
+              onChange={handleGranularityChange}
+            />
+          </div>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}
+              value={filterState.provider}
+              options={providerOptions}
+              onChange={handleFilterChange('provider')}
+            />
+          </div>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_auth_file_label', { defaultValue: 'Auth file' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_auth_file_label', { defaultValue: 'Auth file' })}
+              value={filterState.authIndex}
+              options={authFileOptions}
+              onChange={handleFilterChange('authIndex')}
+            />
+          </div>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}
+              value={filterState.apiKeyHash}
+              options={apiKeyOptions}
+              onChange={handleFilterChange('apiKeyHash')}
+            />
+          </div>
+          <div className={styles.filterField}>
+            <span>{t('monitoring.charts_model_label', { defaultValue: 'Model' })}</span>
+            <Select
+              ariaLabel={t('monitoring.charts_model_label', { defaultValue: 'Model' })}
+              value={filterState.model}
+              options={modelOptions}
+              onChange={handleFilterChange('model')}
+            />
           </div>
         </div>
       </Card>
