@@ -149,6 +149,68 @@ export interface UsageExportResponse {
   filename: string;
 }
 
+export type UsageChartsRange = '1h' | '5h' | '24h' | '7d';
+export type UsageChartsGranularity = 'hour' | 'day';
+
+export interface UsageChartsQueryParams {
+  range?: UsageChartsRange;
+  granularity?: UsageChartsGranularity;
+  provider?: string;
+  authIndex?: string;
+  apiKeyHash?: string;
+  model?: string;
+}
+
+export interface UsageChartMetricBucket {
+  startMs: number;
+  endMs: number;
+  label: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  totalCost: number;
+  tpmInput: number;
+  tpmOutput: number;
+  tpmCached: number;
+}
+
+export interface UsageChartSeries {
+  key: string;
+  label: string;
+  provider?: string;
+  authIndex?: string;
+  apiKeyHash?: string;
+  model?: string;
+  isOther?: boolean;
+  buckets: UsageChartMetricBucket[];
+}
+
+export interface UsageChartsResponse {
+  range: UsageChartsRange;
+  granularity: UsageChartsGranularity;
+  startMs: number;
+  endMs: number;
+  bucketMs: number;
+  filters: {
+    provider?: string;
+    authIndex?: string;
+    apiKeyHash?: string;
+    model?: string;
+  };
+  options: {
+    providers: string[];
+    authFiles: Array<{ authIndex: string; label: string; provider?: string }>;
+    apiKeys: Array<{ apiKeyHash: string; label: string }>;
+    models: string[];
+  };
+  global: { buckets: UsageChartMetricBucket[] };
+  byProviderAuthFile: { series: UsageChartSeries[] };
+  byApiKey: { series: UsageChartSeries[] };
+  byModel: { series: UsageChartSeries[] };
+  missingPriceModels: string[];
+  generatedAtMs: number;
+}
+
 const USAGE_SERVICE_TIMEOUT_MS = 15 * 1000;
 const USAGE_SERVICE_TRANSFER_TIMEOUT_MS = 60 * 1000;
 export const USAGE_SERVICE_ID = 'cpa-manager';
@@ -272,6 +334,25 @@ const parseContentDispositionFilename = (value: string): string => {
   return plainMatch?.[1]?.trim() || '';
 };
 
+const usageChartsParamKeys: Array<keyof UsageChartsQueryParams> = [
+  'range',
+  'granularity',
+  'provider',
+  'authIndex',
+  'apiKeyHash',
+  'model',
+];
+
+const compactUsageChartsParams = (params: UsageChartsQueryParams = {}) =>
+  usageChartsParamKeys.reduce<Partial<Record<keyof UsageChartsQueryParams, string>>>((result, key) => {
+    const value = params[key];
+    if (value === undefined || value === null || String(value).trim() === '') {
+      return result;
+    }
+    result[key] = String(value).trim();
+    return result;
+  }, {});
+
 export const usageServiceApi = {
   getInfo: async (base: string): Promise<UsageServiceInfo> => {
     return withUsageServiceError(async () => {
@@ -340,6 +421,24 @@ export const usageServiceApi = {
         timeout: USAGE_SERVICE_TIMEOUT_MS,
         headers: authHeaders(managementKey),
       });
+      return response.data;
+    });
+  },
+
+  getUsageCharts: async (
+    base: string,
+    params: UsageChartsQueryParams = {},
+    managementKey?: string
+  ): Promise<UsageChartsResponse> => {
+    return withUsageServiceError(async () => {
+      const response = await axios.get<UsageChartsResponse>(
+        buildUrl(base, '/v0/management/usage/charts'),
+        {
+          timeout: USAGE_SERVICE_TIMEOUT_MS,
+          headers: authHeaders(managementKey),
+          params: compactUsageChartsParams(params),
+        }
+      );
       return response.data;
     });
   },

@@ -59,14 +59,14 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Add frontend TypeScript types and a small data-loading path for `GET /v0/management/usage/charts`, following the existing usage-service base resolution and management bearer auth patterns.
 
 **Acceptance criteria:**
-- [ ] `usageServiceApi` exposes a typed `getUsageCharts` method.
-- [ ] The client sends only supported query params and includes the management bearer token.
-- [ ] A chart data loader/hook resolves the embedded usage-service base consistently with existing monitoring code.
-- [ ] Error handling uses existing `UsageServiceApiError` behavior.
+- [x] `usageServiceApi` exposes a typed `getUsageCharts` method.
+- [x] The client sends only supported query params and includes the management bearer token.
+- [x] A chart data loader/hook resolves the embedded usage-service base consistently with existing monitoring code.
+- [x] Error handling uses existing `UsageServiceApiError` behavior.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
-- [ ] API client tests verify query params and Authorization headers.
+- [x] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
+- [x] API client tests verify query params and Authorization headers.
 
 **Dependencies:** Task 1.
 
