@@ -18,11 +18,14 @@ import { OAuthPage } from '@/pages/OAuthPage';
 import { QuotaPage } from '@/pages/QuotaPage';
 import { MonitoringCenterPage } from '@/pages/MonitoringCenterPage';
 import { CodexInspectionPage } from '@/pages/CodexInspectionPage';
+import { MonitoringChartsPage } from '@/pages/MonitoringChartsPage';
 import { ConfigPage } from '@/pages/ConfigPage';
 import { LogsPage } from '@/pages/LogsPage';
 import { SystemPage } from '@/pages/SystemPage';
 
-const mainRoutes = [
+// Exported for route registration tests; the runtime entry point remains MainRoutes.
+// eslint-disable-next-line react-refresh/only-export-components
+export const mainRoutes = [
   { path: '/', element: <DashboardPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/settings', element: <Navigate to="/config" replace /> },
@@ -74,6 +77,7 @@ const mainRoutes = [
   { path: '/oauth', element: <OAuthPage /> },
   { path: '/quota', element: <QuotaPage /> },
   { path: '/monitoring', element: <MonitoringCenterPage /> },
+  { path: '/monitoring/charts', element: <MonitoringChartsPage /> },
   { path: '/monitoring/codex-inspection', element: <CodexInspectionPage /> },
   { path: '/config', element: <ConfigPage /> },
   { path: '/logs', element: <LogsPage /> },

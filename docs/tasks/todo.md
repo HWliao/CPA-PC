@@ -82,14 +82,14 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Add `/monitoring/charts` as a new page with the existing monitoring/Codex layout rhythm, then add one navigation entry beside Codex account inspection on the Request Monitoring page. The page should load chart data and render loading, error, and empty states before chart rendering is added.
 
 **Acceptance criteria:**
-- [ ] `/monitoring/charts` is registered in `MainRoutes`.
-- [ ] `/monitoring` action bar contains a single chart-page entry beside Codex account inspection.
-- [ ] The new page has a header, status/action panel, and empty/error/loading states matching monitoring/Codex visual language.
-- [ ] No unrelated request monitoring UI behavior changes.
+- [x] `/monitoring/charts` is registered in `MainRoutes`.
+- [x] `/monitoring` action bar contains a single chart-page entry beside Codex account inspection.
+- [x] The new page has a header, status/action panel, and empty/error/loading states matching monitoring/Codex visual language.
+- [x] No unrelated request monitoring UI behavior changes.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
-- [ ] Manual review confirms the new entry is adjacent to Codex inspection and the page shell is responsive.
+- [x] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
+- [x] Manual review confirms the new entry is adjacent to Codex inspection and the page shell is responsive.
 
 **Dependencies:** Task 3.
 

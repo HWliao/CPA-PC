@@ -1,0 +1,202 @@
+.page {
+  container: monitoring-charts-page / inline-size;
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.panel,
+.statePanel,
+.summaryCard {
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.panel {
+  padding: 22px;
+}
+
+.statusPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.statusInfo,
+.statusActions,
+.statusMeta,
+.quickLink {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.statusInfo {
+  gap: 14px;
+  min-width: 0;
+}
+
+.statusActions {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.tone-info {
+  color: var(--primary-active);
+}
+
+.tone-good {
+  color: var(--success-color);
+}
+
+.tone-warn {
+  color: var(--warning-color);
+}
+
+.tone-bad {
+  color: var(--error-color);
+}
+
+.statusMeta {
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusMeta span {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.quickLink {
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.statePanel {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 28px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.statePanel strong {
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.errorPanel {
+  color: var(--error-color);
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryCard {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.summaryCard span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.summaryCard strong {
+  font-size: 24px;
+}
+
+@container monitoring-charts-page (max-width: 760px) {
+  .statusBar,
+  .statusActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quickLink {
+    width: 100%;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container monitoring-charts-page (max-width: 520px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3115,6 +3115,14 @@ export function MonitoringCenterPage() {
 
         <div className={`${styles.actionGroup} ${styles.actionGroupNav}`}>
           <Link
+            to="/monitoring/charts"
+            className={`${styles.actionButton} ${styles.quickNavLink}`}
+          >
+            <IconChartLine size={16} />
+            <span>{t('monitoring.charts_entry', { defaultValue: 'Monitoring Charts' })}</span>
+            <IconExternalLink size={14} />
+          </Link>
+          <Link
             to="/monitoring/codex-inspection"
             className={`${styles.actionButton} ${styles.quickNavLink}`}
           >
