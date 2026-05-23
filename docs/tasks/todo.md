@@ -107,14 +107,14 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Install the direct ECharts dependency and add the thin chart host plus pure chart option builders. This keeps chart rendering testable before the page starts depending on ECharts at runtime.
 
 **Acceptance criteria:**
-- [ ] `echarts` is added to `web/package.json` and `web/package-lock.json` through npm.
-- [ ] Chart option builders are pure and covered by unit tests.
-- [ ] Chart host cleans up chart instances and resizes safely.
-- [ ] No React wrapper dependency is added.
+- [x] `echarts` is added to `web/package.json` and `web/package-lock.json` through npm.
+- [x] Chart option builders are pure and covered by unit tests.
+- [x] Chart host cleans up chart instances and resizes safely.
+- [x] No React wrapper dependency is added.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
-- [ ] Type check passes for chart types: `npm --prefix web run type-check`.
+- [x] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
+- [x] Type check passes for chart types: `npm --prefix web run type-check`.
 
 **Dependencies:** Task 4.
 
