@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Select } from '@/components/ui/Select';
 import { mainRoutes } from '@/router/MainRoutes';
 import { useUsageCharts, type UseUsageChartsReturn } from '@/features/monitoring/charts/useUsageCharts';
-import type { UsageChartsResponse } from '@/services/api/usageService';
+import type { UsageChartSeries, UsageChartsResponse } from '@/services/api/usageService';
 import { MonitoringChartsPage } from './MonitoringChartsPage';
 
 vi.mock('react-router-dom', async () => {
@@ -78,6 +78,25 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
   missingPriceModels: [],
   generatedAtMs: 0,
   ...overrides,
+});
+
+const createSeries = (key: string, label: string): UsageChartSeries => ({
+  key,
+  label,
+  buckets: [
+    {
+      startMs: 0,
+      endMs: 3600000,
+      label: '10:00',
+      inputTokens: 12,
+      outputTokens: 4,
+      cachedTokens: 2,
+      totalCost: 0.01,
+      tpmInput: 1,
+      tpmOutput: 0.5,
+      tpmCached: 0.25,
+    },
+  ],
 });
 
 describe('MonitoringChartsPage', () => {
@@ -168,5 +187,40 @@ describe('MonitoringChartsPage', () => {
     });
 
     renderer!.unmount();
+  });
+
+  it('renders dimension chart sections for non-empty series', () => {
+    vi.mocked(useUsageCharts).mockReturnValue(
+      createHookState({
+        charts: createChartsResponse({
+          byProviderAuthFile: { series: [createSeries('provider', 'OpenAI / Team Codex')] },
+          byApiKey: { series: [createSeries('api-key', 'Build key')] },
+          byModel: { series: [createSeries('model', 'gpt-5')] },
+        }),
+      })
+    );
+
+    const html = renderToStaticMarkup(<MonitoringChartsPage />);
+
+    expect(html).toContain('Provider/auth files');
+    expect(html).toContain('Provider/auth tokens');
+    expect(html).toContain('Provider/auth cost');
+    expect(html).toContain('Provider/auth TPM');
+    expect(html).toContain('API-key tokens');
+    expect(html).toContain('API-key cost');
+    expect(html).toContain('API-key TPM');
+    expect(html).toContain('Model tokens');
+    expect(html).toContain('Model cost');
+    expect(html).toContain('Model TPM');
+  });
+
+  it('renders empty states for dimensions without series', () => {
+    vi.mocked(useUsageCharts).mockReturnValue(createHookState({ charts: createChartsResponse() }));
+
+    const html = renderToStaticMarkup(<MonitoringChartsPage />);
+
+    expect(html).toContain('No provider/auth-file series');
+    expect(html).toContain('No API-key series');
+    expect(html).toContain('No model series');
   });
 });

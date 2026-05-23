@@ -7,7 +7,11 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
 import { IconChartLine, IconExternalLink, IconRefreshCw } from '@/components/ui/icons';
 import { EChartPanel } from '@/features/monitoring/charts/EChartPanel';
-import { buildGlobalUsageChartOption } from '@/features/monitoring/charts/chartOptions';
+import {
+  buildGlobalUsageChartOption,
+  buildSeriesUsageChartOption,
+  type UsageChartMetricFamily,
+} from '@/features/monitoring/charts/chartOptions';
 import {
   USAGE_CHART_GRANULARITY_OPTIONS,
   USAGE_CHART_RANGE_OPTIONS,
@@ -17,7 +21,7 @@ import {
   type UsageChartsFilterState,
 } from '@/features/monitoring/charts/filters';
 import { useUsageCharts } from '@/features/monitoring/charts/useUsageCharts';
-import type { UsageChartsGranularity, UsageChartsRange } from '@/services/api/usageService';
+import type { UsageChartSeries, UsageChartsGranularity, UsageChartsRange } from '@/services/api/usageService';
 import { formatCompactNumber, formatUsd } from '@/utils/usage';
 import styles from './MonitoringChartsPage.module.scss';
 
@@ -66,6 +70,123 @@ export function MonitoringChartsPage() {
   const globalTokenTitle = t('monitoring.charts_global_tokens', { defaultValue: 'Global tokens' });
   const globalCostTitle = t('monitoring.charts_global_cost', { defaultValue: 'Global cost' });
   const globalTpmTitle = t('monitoring.charts_global_tpm', { defaultValue: 'Global TPM' });
+  const dimensionGroups: Array<{
+    key: string;
+    title: string;
+    description: string;
+    emptyTitle: string;
+    emptyDescription: string;
+    series: UsageChartSeries[];
+    charts: Array<{ family: UsageChartMetricFamily; title: string; description: string }>;
+  }> = [
+    {
+      key: 'provider-auth',
+      title: t('monitoring.charts_provider_auth_title', { defaultValue: 'Provider/auth files' }),
+      description: t('monitoring.charts_provider_auth_desc', {
+        defaultValue: 'Compare each returned provider and auth-file series.',
+      }),
+      emptyTitle: t('monitoring.charts_provider_auth_empty_title', {
+        defaultValue: 'No provider/auth-file series',
+      }),
+      emptyDescription: t('monitoring.charts_provider_auth_empty_desc', {
+        defaultValue: 'Provider and auth-file series will appear when matching usage events exist.',
+      }),
+      series: charts?.byProviderAuthFile.series ?? [],
+      charts: [
+        {
+          family: 'tokens',
+          title: t('monitoring.charts_provider_auth_tokens', { defaultValue: 'Provider/auth tokens' }),
+          description: t('monitoring.charts_provider_auth_tokens_desc', {
+            defaultValue: 'Token structure for every provider/auth-file series.',
+          }),
+        },
+        {
+          family: 'cost',
+          title: t('monitoring.charts_provider_auth_cost', { defaultValue: 'Provider/auth cost' }),
+          description: t('monitoring.charts_provider_auth_cost_desc', {
+            defaultValue: 'Estimated spend for every provider/auth-file series.',
+          }),
+        },
+        {
+          family: 'tpm',
+          title: t('monitoring.charts_provider_auth_tpm', { defaultValue: 'Provider/auth TPM' }),
+          description: t('monitoring.charts_provider_auth_tpm_desc', {
+            defaultValue: 'Tokens per minute for every provider/auth-file series.',
+          }),
+        },
+      ],
+    },
+    {
+      key: 'api-key',
+      title: t('monitoring.charts_api_key_title', { defaultValue: 'API keys' }),
+      description: t('monitoring.charts_api_key_desc', {
+        defaultValue: 'Compare usage by API-key alias or hash prefix.',
+      }),
+      emptyTitle: t('monitoring.charts_api_key_empty_title', { defaultValue: 'No API-key series' }),
+      emptyDescription: t('monitoring.charts_api_key_empty_desc', {
+        defaultValue: 'API-key series will appear when matching usage events include key hashes.',
+      }),
+      series: charts?.byApiKey.series ?? [],
+      charts: [
+        {
+          family: 'tokens',
+          title: t('monitoring.charts_api_key_tokens', { defaultValue: 'API-key tokens' }),
+          description: t('monitoring.charts_api_key_tokens_desc', {
+            defaultValue: 'Token structure for every API-key series.',
+          }),
+        },
+        {
+          family: 'cost',
+          title: t('monitoring.charts_api_key_cost', { defaultValue: 'API-key cost' }),
+          description: t('monitoring.charts_api_key_cost_desc', {
+            defaultValue: 'Estimated spend for every API-key series.',
+          }),
+        },
+        {
+          family: 'tpm',
+          title: t('monitoring.charts_api_key_tpm', { defaultValue: 'API-key TPM' }),
+          description: t('monitoring.charts_api_key_tpm_desc', {
+            defaultValue: 'Tokens per minute for every API-key series.',
+          }),
+        },
+      ],
+    },
+    {
+      key: 'model',
+      title: t('monitoring.charts_model_title', { defaultValue: 'Models' }),
+      description: t('monitoring.charts_model_desc', {
+        defaultValue: 'Compare usage across all returned model series.',
+      }),
+      emptyTitle: t('monitoring.charts_model_empty_title', { defaultValue: 'No model series' }),
+      emptyDescription: t('monitoring.charts_model_empty_desc', {
+        defaultValue: 'Model series will appear when matching usage events include model names.',
+      }),
+      series: charts?.byModel.series ?? [],
+      charts: [
+        {
+          family: 'tokens',
+          title: t('monitoring.charts_model_tokens', { defaultValue: 'Model tokens' }),
+          description: t('monitoring.charts_model_tokens_desc', {
+            defaultValue: 'Token structure for every model series.',
+          }),
+        },
+        {
+          family: 'cost',
+          title: t('monitoring.charts_model_cost', { defaultValue: 'Model cost' }),
+          description: t('monitoring.charts_model_cost_desc', {
+            defaultValue: 'Estimated spend for every model series.',
+          }),
+        },
+        {
+          family: 'tpm',
+          title: t('monitoring.charts_model_tpm', { defaultValue: 'Model TPM' }),
+          description: t('monitoring.charts_model_tpm_desc', {
+            defaultValue: 'Tokens per minute for every model series.',
+          }),
+        },
+      ],
+    },
+  ];
   const statusTone = error ? 'bad' : loading ? 'info' : usageServiceAvailable ? 'good' : 'warn';
   const statusLabel = error
     ? t('monitoring.charts_status_error', { defaultValue: 'Chart load failed' })
@@ -330,6 +451,42 @@ export function MonitoringChartsPage() {
               />
             </Card>
           </section>
+
+          {dimensionGroups.map((group) => (
+            <section key={group.key} className={styles.dimensionSection}>
+              <div className={styles.dimensionHeader}>
+                <h2>{group.title}</h2>
+                <span>{group.description}</span>
+              </div>
+              {group.series.length === 0 ? (
+                <Card className={styles.dimensionEmpty}>
+                  <IconChartLine size={20} />
+                  <strong>{group.emptyTitle}</strong>
+                  <span>{group.emptyDescription}</span>
+                </Card>
+              ) : (
+                <div className={styles.chartGrid}>
+                  {group.charts.map((chart) => (
+                    <Card key={chart.family} className={styles.chartCard}>
+                      <div className={styles.chartHeader}>
+                        <h2>{chart.title}</h2>
+                        <span>{chart.description}</span>
+                      </div>
+                      <EChartPanel
+                        ariaLabel={chart.title}
+                        className={styles.chartCanvas}
+                        option={buildSeriesUsageChartOption({
+                          title: chart.title,
+                          family: chart.family,
+                          series: group.series,
+                        })}
+                      />
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
         </>
       )}
     </div>

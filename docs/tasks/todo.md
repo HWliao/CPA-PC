@@ -185,16 +185,16 @@ Status: Draft for review. Do not implement until the user explicitly says to pro
 **Description:** Add provider/auth-file, API-key, and model sections, each showing token structure, cost, and TPM line charts for all returned series.
 
 **Acceptance criteria:**
-- [ ] Provider/auth-file section renders all returned series for token, cost, and TPM metric families.
-- [ ] API-key section renders all returned series for token, cost, and TPM metric families.
-- [ ] Model section renders all returned series for token, cost, and TPM metric families.
-- [ ] Empty dimension series show useful empty states instead of blank chart frames.
-- [ ] Missing price models are surfaced without blocking token or TPM charts.
+- [x] Provider/auth-file section renders all returned series for token, cost, and TPM metric families.
+- [x] API-key section renders all returned series for token, cost, and TPM metric families.
+- [x] Model section renders all returned series for token, cost, and TPM metric families.
+- [x] Empty dimension series show useful empty states instead of blank chart frames.
+- [x] Missing price models are surfaced without blocking token or TPM charts.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
-- [ ] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
-- [ ] Manual review confirms all returned series are visible in legends or chart labels.
+- [x] Tests pass: `npm --prefix web test -- src/features/monitoring/charts`.
+- [x] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`.
+- [x] Manual review confirms all returned series are visible in legends or chart labels.
 
 **Dependencies:** Task 7.
 
