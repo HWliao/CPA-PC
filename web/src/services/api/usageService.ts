@@ -150,13 +150,12 @@ export interface UsageExportResponse {
 }
 
 export type UsageChartsRange = '1h' | '5h' | '24h' | '7d';
-export type UsageChartsGranularity = 'hour' | 'day';
+export type UsageChartsGranularity = '10m' | 'hour' | 'day';
 
 export interface UsageChartsQueryParams {
   range?: UsageChartsRange;
   granularity?: UsageChartsGranularity;
   provider?: string;
-  authIndex?: string;
   apiKeyHash?: string;
   model?: string;
 }
@@ -193,18 +192,16 @@ export interface UsageChartsResponse {
   bucketMs: number;
   filters: {
     provider?: string;
-    authIndex?: string;
     apiKeyHash?: string;
     model?: string;
   };
   options: {
-    providers: string[];
-    authFiles: Array<{ authIndex: string; label: string; provider?: string }>;
-    apiKeys: Array<{ apiKeyHash: string; label: string }>;
-    models: string[];
+    providers: Array<{ value: string; label: string; provider?: string; authIndex?: string }>;
+    apiKeys: Array<{ value: string; apiKeyHash: string; label: string }>;
+    models: Array<{ value: string; model: string; label: string }>;
   };
   global: { buckets: UsageChartMetricBucket[] };
-  byProviderAuthFile: { series: UsageChartSeries[] };
+  byProvider: { series: UsageChartSeries[] };
   byApiKey: { series: UsageChartSeries[] };
   byModel: { series: UsageChartSeries[] };
   missingPriceModels: string[];
@@ -338,7 +335,6 @@ const usageChartsParamKeys: Array<keyof UsageChartsQueryParams> = [
   'range',
   'granularity',
   'provider',
-  'authIndex',
   'apiKeyHash',
   'model',
 ];

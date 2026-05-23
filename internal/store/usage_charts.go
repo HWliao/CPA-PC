@@ -36,10 +36,9 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 	}
 	defer rows.Close()
 
-	providers := map[string]struct{}{}
-	authFiles := map[string]usage.ChartAuthFileOption{}
+	providers := map[string]usage.ChartProviderOption{}
 	apiKeys := map[string]usage.ChartAPIKeyOption{}
-	models := map[string]struct{}{}
+	models := map[string]usage.ChartModelOption{}
 	missingPriceModels := map[string]struct{}{}
 	providerSeries := map[string]*usage.ChartSeries{}
 	apiKeySeries := map[string]*usage.ChartSeries{}
@@ -47,16 +46,18 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 
 	for rows.Next() {
 		var timestampMS int64
-		var provider, authIndex, authLabel, apiKeyHash sql.NullString
+		var provider, authIndex, authLabel, authFile, account, apiKeyHash sql.NullString
 		var model string
 		var inputTokens, outputTokens, cachedTokens, cacheTokens int64
-		if err := rows.Scan(&timestampMS, &provider, &model, &authIndex, &authLabel, &apiKeyHash, &inputTokens, &outputTokens, &cachedTokens, &cacheTokens); err != nil {
+		if err := rows.Scan(&timestampMS, &provider, &model, &authIndex, &authLabel, &authFile, &account, &apiKeyHash, &inputTokens, &outputTokens, &cachedTokens, &cacheTokens); err != nil {
 			return usage.ChartsResponse{}, err
 		}
 		providerText := strings.TrimSpace(provider.String)
 		model = strings.TrimSpace(model)
 		authIndexText := strings.TrimSpace(authIndex.String)
 		authLabelText := strings.TrimSpace(authLabel.String)
+		authFileText := strings.TrimSpace(authFile.String)
+		accountText := strings.TrimSpace(account.String)
 		apiKeyHashText := strings.ToLower(strings.TrimSpace(apiKeyHash.String))
 
 		bucket := bucketForTimestamp(response.Global.Buckets, timestampMS)
@@ -66,24 +67,23 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 		if cacheTokens > cachedTokens {
 			cachedTokens = cacheTokens
 		}
-		if providerText != "" {
-			providers[providerText] = struct{}{}
+		providerOption := chartProviderOption(providerText, authIndexText, authLabelText, authFileText, accountText)
+		if providerOption.Value != "" {
+			providers[providerOption.Value] = providerOption
 		}
 		if model != "" {
-			models[model] = struct{}{}
+			models[model] = usage.ChartModelOption{
+				Value: model,
+				Model: model,
+				Label: defaultChartLabel(model, "-"),
+			}
 			if _, ok := prices[model]; !ok {
 				missingPriceModels[model] = struct{}{}
 			}
 		}
-		if authIndexText != "" {
-			authFiles[authIndexText] = usage.ChartAuthFileOption{
-				AuthIndex: authIndexText,
-				Label:     defaultChartLabel(authLabelText, authIndexText),
-				Provider:  providerText,
-			}
-		}
 		if apiKeyHashText != "" {
 			apiKeys[apiKeyHashText] = usage.ChartAPIKeyOption{
+				Value:      apiKeyHashText,
 				APIKeyHash: apiKeyHashText,
 				Label:      apiKeyDisplayLabel(apiKeyHashText, aliasLabels),
 			}
@@ -95,13 +95,13 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 		bucket.CachedTokens += cachedTokens
 		bucket.TotalCost += cost
 
-		providerKey := providerText + "\x00" + authIndexText
-		providerLabel := providerAuthFileLabel(providerText, authIndexText, authLabelText)
-		providerEntry := getChartSeries(providerSeries, providerKey, providerLabel, response, func(series *usage.ChartSeries) {
-			series.Provider = providerText
-			series.AuthIndex = authIndexText
-		})
-		addToSeries(providerEntry, timestampMS, inputTokens, outputTokens, cachedTokens, cost)
+		if providerOption.Value != "" {
+			providerEntry := getChartSeries(providerSeries, providerOption.Value, providerOption.Label, response, func(series *usage.ChartSeries) {
+				series.Provider = providerText
+				series.AuthIndex = authIndexText
+			})
+			addToSeries(providerEntry, timestampMS, inputTokens, outputTokens, cachedTokens, cost)
+		}
 
 		if apiKeyHashText != "" {
 			apiKeyEntry := getChartSeries(apiKeySeries, apiKeyHashText, apiKeyDisplayLabel(apiKeyHashText, aliasLabels), response, func(series *usage.ChartSeries) {
@@ -120,19 +120,18 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 	}
 
 	computeTPM(response.Global.Buckets)
-	response.ByProviderAuthFile.Series = finishSeries(providerSeries)
+	response.ByProvider.Series = finishSeries(providerSeries)
 	response.ByAPIKey.Series = finishSeries(apiKeySeries)
 	response.ByModel.Series = finishSeries(modelSeries)
-	response.Options.Providers = sortedKeys(providers)
-	response.Options.AuthFiles = sortedAuthFileOptions(authFiles)
+	response.Options.Providers = sortedProviderOptions(providers)
 	response.Options.APIKeys = sortedAPIKeyOptions(apiKeys)
-	response.Options.Models = sortedKeys(models)
+	response.Options.Models = sortedModelOptions(models)
 	response.MissingPriceModels = sortedKeys(missingPriceModels)
 	return response, nil
 }
 
 func usageChartQuerySQL(startMS int64, endMS int64, query usage.ChartQuery) (string, []any) {
-	statement := `select timestamp_ms, provider, model, auth_index, auth_label_snapshot, api_key_hash, input_tokens, output_tokens, cached_tokens, cache_tokens
+	statement := `select timestamp_ms, provider, model, auth_index, auth_label_snapshot, auth_file_snapshot, account_snapshot, api_key_hash, input_tokens, output_tokens, cached_tokens, cache_tokens
 		from usage_events
 		where timestamp_ms >= ? and timestamp_ms <= ?`
 	args := []any{startMS, endMS}
@@ -272,14 +271,40 @@ func apiKeyDisplayLabel(apiKeyHash string, aliases map[string]string) string {
 	return "sha256:" + hash
 }
 
-func providerAuthFileLabel(provider string, authIndex string, authLabel string) string {
-	if strings.TrimSpace(authLabel) != "" {
-		return strings.TrimSpace(authLabel)
+func chartProviderOption(provider string, authIndex string, authLabel string, authFile string, account string) usage.ChartProviderOption {
+	provider = strings.TrimSpace(provider)
+	authIndex = strings.TrimSpace(authIndex)
+	value := chartProviderValue(provider, authIndex)
+	if value == "" {
+		return usage.ChartProviderOption{}
 	}
-	if strings.TrimSpace(authIndex) != "" {
-		return strings.TrimSpace(authIndex)
+	return usage.ChartProviderOption{
+		Value:     value,
+		Label:     chartProviderLabel(provider, authLabel, authFile, account),
+		Provider:  provider,
+		AuthIndex: authIndex,
 	}
-	return defaultChartLabel(provider, "-")
+}
+
+func chartProviderValue(provider string, authIndex string) string {
+	provider = strings.TrimSpace(provider)
+	authIndex = strings.TrimSpace(authIndex)
+	if authIndex != "" {
+		return "auth:" + authIndex
+	}
+	if provider != "" {
+		return "provider:" + provider
+	}
+	return ""
+}
+
+func chartProviderLabel(provider string, authLabel string, authFile string, account string) string {
+	for _, candidate := range []string{authLabel, account, authFile, provider} {
+		if strings.TrimSpace(candidate) != "" {
+			return strings.TrimSpace(candidate)
+		}
+	}
+	return "Unnamed provider"
 }
 
 func defaultChartLabel(value string, fallback string) string {
@@ -300,14 +325,28 @@ func sortedKeys(values map[string]struct{}) []string {
 	return keys
 }
 
-func sortedAuthFileOptions(values map[string]usage.ChartAuthFileOption) []usage.ChartAuthFileOption {
-	items := make([]usage.ChartAuthFileOption, 0, len(values))
+func sortedProviderOptions(values map[string]usage.ChartProviderOption) []usage.ChartProviderOption {
+	items := make([]usage.ChartProviderOption, 0, len(values))
 	for _, item := range values {
 		items = append(items, item)
 	}
 	sort.Slice(items, func(i, j int) bool {
 		if items[i].Label == items[j].Label {
-			return items[i].AuthIndex < items[j].AuthIndex
+			return items[i].Value < items[j].Value
+		}
+		return items[i].Label < items[j].Label
+	})
+	return items
+}
+
+func sortedModelOptions(values map[string]usage.ChartModelOption) []usage.ChartModelOption {
+	items := make([]usage.ChartModelOption, 0, len(values))
+	for _, item := range values {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Label == items[j].Label {
+			return items[i].Value < items[j].Value
 		}
 		return items[i].Label < items[j].Label
 	})

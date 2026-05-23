@@ -1,7 +1,7 @@
 import type { EChartsCoreOption } from 'echarts/core';
 import type { UsageChartMetricBucket, UsageChartSeries } from '@/services/api/usageService';
 
-export type UsageChartMetricFamily = 'tokens' | 'cost' | 'tpm';
+export type UsageChartMetricFamily = 'tokens' | 'cumulativeTokens' | 'cost' | 'tpm';
 
 type UsageChartMetricKey = Extract<
   keyof UsageChartMetricBucket,
@@ -43,6 +43,11 @@ const METRICS_BY_FAMILY: Record<UsageChartMetricFamily, MetricDefinition[]> = {
     { key: 'outputTokens', label: 'Output tokens', suffixLabel: 'output tokens' },
     { key: 'cachedTokens', label: 'Cached tokens', suffixLabel: 'cached tokens' },
   ],
+  cumulativeTokens: [
+    { key: 'inputTokens', label: 'Input tokens', suffixLabel: 'input tokens' },
+    { key: 'outputTokens', label: 'Output tokens', suffixLabel: 'output tokens' },
+    { key: 'cachedTokens', label: 'Cached tokens', suffixLabel: 'cached tokens' },
+  ],
   cost: [{ key: 'totalCost', label: 'Cost' }],
   tpm: [
     { key: 'tpmInput', label: 'Input TPM', suffixLabel: 'input TPM' },
@@ -53,6 +58,7 @@ const METRICS_BY_FAMILY: Record<UsageChartMetricFamily, MetricDefinition[]> = {
 
 const Y_AXIS_NAME_BY_FAMILY: Record<UsageChartMetricFamily, string> = {
   tokens: 'Tokens',
+  cumulativeTokens: 'Tokens',
   cost: 'USD',
   tpm: 'TPM',
 };
@@ -61,6 +67,33 @@ const readMetricValue = (bucket: UsageChartMetricBucket | undefined, key: UsageC
   if (!bucket) return 0;
   const value = bucket[key];
   return Number.isFinite(value) ? value : 0;
+};
+
+const buildMetricData = (
+  buckets: Array<UsageChartMetricBucket | undefined>,
+  key: UsageChartMetricKey,
+  cumulative: boolean
+): number[] => {
+  let runningTotal = 0;
+  return buckets.map((bucket) => {
+    const value = readMetricValue(bucket, key);
+    if (!cumulative) return value;
+    runningTotal += value;
+    return runningTotal;
+  });
+};
+
+export const formatChartMetricValue = (value: number): string => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
+  if (abs >= 100) return num.toFixed(0);
+  if (abs === 0) return '0';
+  return num.toFixed(2);
 };
 
 const buildBaseLineChartOption = ({
@@ -85,15 +118,16 @@ const buildBaseLineChartOption = ({
   },
   tooltip: {
     trigger: 'axis',
+    valueFormatter: (value: number) => formatChartMetricValue(value),
   },
   legend: {
     type: 'scroll',
-    top: 32,
+    bottom: 0,
   },
   grid: {
-    top: 76,
+    top: 48,
     right: 16,
-    bottom: 32,
+    bottom: 72,
     left: 12,
     containLabel: true,
   },
@@ -105,6 +139,9 @@ const buildBaseLineChartOption = ({
   yAxis: {
     type: 'value',
     name: yAxisName,
+    axisLabel: {
+      formatter: (value: number) => formatChartMetricValue(value),
+    },
   },
   series: series.map((item) => ({
     name: item.name,
@@ -121,13 +158,14 @@ export function buildGlobalUsageChartOption({
   buckets,
 }: BuildGlobalUsageChartOptionInput): EChartsCoreOption {
   const metrics = METRICS_BY_FAMILY[family];
+  const cumulative = family === 'cumulativeTokens';
   return buildBaseLineChartOption({
     title,
     labels: buckets.map((bucket) => bucket.label),
     yAxisName: Y_AXIS_NAME_BY_FAMILY[family],
     series: metrics.map((metric) => ({
       name: metric.label,
-      data: buckets.map((bucket) => readMetricValue(bucket, metric.key)),
+      data: buildMetricData(buckets, metric.key, cumulative),
     })),
   });
 }
@@ -138,6 +176,7 @@ export function buildSeriesUsageChartOption({
   series,
 }: BuildSeriesUsageChartOptionInput): EChartsCoreOption {
   const metrics = METRICS_BY_FAMILY[family];
+  const cumulative = family === 'cumulativeTokens';
   const labelsSource = series.find((item) => item.buckets.length > 0)?.buckets ?? [];
   const startMsValues = labelsSource.map((bucket) => bucket.startMs);
 
@@ -149,7 +188,11 @@ export function buildSeriesUsageChartOption({
       const bucketsByStartMs = new Map(item.buckets.map((bucket) => [bucket.startMs, bucket]));
       return metrics.map((metric) => ({
         name: metrics.length === 1 ? item.label : `${item.label} ${metric.suffixLabel ?? metric.label}`,
-        data: startMsValues.map((startMs) => readMetricValue(bucketsByStartMs.get(startMs), metric.key)),
+        data: buildMetricData(
+          startMsValues.map((startMs) => bucketsByStartMs.get(startMs)),
+          metric.key,
+          cumulative
+        ),
       }));
     }),
   });

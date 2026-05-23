@@ -68,7 +68,7 @@
 
 .filterGrid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -82,6 +82,12 @@
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
+}
+
+.filterHint {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .statusBar {
@@ -262,7 +268,7 @@
 
 .chartGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -296,7 +302,7 @@
 }
 
 .chartCanvas {
-  min-height: 300px;
+  min-height: 340px;
   min-width: 0;
 }
 

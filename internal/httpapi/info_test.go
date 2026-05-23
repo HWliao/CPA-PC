@@ -154,28 +154,28 @@ func TestRegisterRoutesServesUsagePayload(t *testing.T) {
 func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	store := &fakeUsageStore{charts: usage.ChartsResponse{
 		Range:       usage.ChartRange1H,
-		Granularity: usage.ChartGranularityHour,
+		Granularity: usage.ChartGranularity10Minute,
 		StartMS:     1_779_000_000_000,
-		EndMS:       1_779_003_600_000,
-		BucketMS:    int64(time.Hour / time.Millisecond),
+		EndMS:       1_779_000_600_000,
+		BucketMS:    int64((10 * time.Minute) / time.Millisecond),
 		Global: usage.ChartBucketGroup{Buckets: []usage.ChartMetricBucket{{
 			StartMS:      1_779_000_000_000,
-			EndMS:        1_779_003_600_000,
+			EndMS:        1_779_000_600_000,
 			Label:        "10:00",
 			InputTokens:  1000,
 			OutputTokens: 500,
 			CachedTokens: 200,
 			TotalCost:    0.0038,
-			TPMInput:     1000.0 / 60.0,
-			TPMOutput:    500.0 / 60.0,
-			TPMCached:    200.0 / 60.0,
+			TPMInput:     1000.0 / 10.0,
+			TPMOutput:    500.0 / 10.0,
+			TPMCached:    200.0 / 10.0,
 		}},
 		},
 	}}
 	g := newTestRouter(store)
 
 	const hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=hour&provider=openai&authIndex=auth-a&apiKeyHash="+hash+"&model=gpt-test", "123456")
+	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=10m&provider=auth%3Aauth-a&apiKeyHash="+hash+"&model=gpt-test", "123456")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
@@ -183,16 +183,16 @@ func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularityHour {
+	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularity10Minute {
 		t.Fatalf("payload range/granularity = %#v", payload)
 	}
 	if len(payload.Global.Buckets) != 1 || payload.Global.Buckets[0].InputTokens != 1000 {
 		t.Fatalf("payload global = %#v", payload.Global)
 	}
-	if store.chartQuery.Range != usage.ChartRange1H || store.chartQuery.Granularity != usage.ChartGranularityHour {
+	if store.chartQuery.Range != usage.ChartRange1H || store.chartQuery.Granularity != usage.ChartGranularity10Minute {
 		t.Fatalf("chart query = %#v", store.chartQuery)
 	}
-	if store.chartQuery.Provider != "openai" || store.chartQuery.AuthIndex != "auth-a" || store.chartQuery.APIKeyHash != hash || store.chartQuery.Model != "gpt-test" {
+	if store.chartQuery.ProviderKey != "auth:auth-a" || store.chartQuery.APIKeyHash != hash || store.chartQuery.Model != "gpt-test" {
 		t.Fatalf("chart filters = %#v", store.chartQuery)
 	}
 }
@@ -208,11 +208,11 @@ func TestRegisterRoutesServesEmptyUsageChartsWithoutStore(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularityHour {
+	if payload.Range != usage.ChartRange1H || payload.Granularity != usage.ChartGranularity10Minute {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if len(payload.Global.Buckets) != 1 {
-		t.Fatalf("len(global buckets) = %d, want 1", len(payload.Global.Buckets))
+	if len(payload.Global.Buckets) != 6 {
+		t.Fatalf("len(global buckets) = %d, want 6", len(payload.Global.Buckets))
 	}
 }
 

@@ -7,13 +7,13 @@ Status: Spec confirmed. Implementation is on hold until the user explicitly asks
 - Add a new management UI page at `/monitoring/charts` and keep the existing request monitoring page at `/monitoring` intact except for one navigation entry beside Codex account inspection.
 - Add one related read-only backend endpoint for chart statistics, backed by the local SQLite `usage_events` table. Confirmed endpoint: `GET /v0/management/usage/charts`.
 - Use the direct `echarts` npm dependency. Do not add an ECharts React wrapper unless approved later.
-- Do not cap or aggregate chart series. Provider/auth-file, API-key, and model chart groups should render all matching series because expected cardinality is low.
+- Do not cap or aggregate chart series. Provider, API-key, and model dimensions should render all matching series because expected cardinality is low.
 - Token charts cover input, output, and cached tokens only, as requested. Reasoning tokens remain available in existing data but are not charted in v1.
 - Page layout should reference the existing Request Monitoring page and Codex Account Inspection page, reusing their page shell, header/action-card rhythm, panel spacing, mobile behavior, and visual language where practical.
 
 ## Objective
 
-Build a new monitoring charts page for local CPA-PC users who already use the Request Monitoring page. The feature fills the current monitoring gap: request data is available in summaries and tables, but there is no time-series visualization for token, cost, and TPM trends.
+Build a new monitoring charts page for local CPA-PC users who already use the Request Monitoring page. The feature fills the current monitoring gap: request data is available in summaries and tables, but there is no time-series visualization for token, cumulative token, cost, and TPM trends.
 
 Target users:
 
@@ -23,23 +23,23 @@ Target users:
 User stories:
 
 - As a local user, I can open a chart page from Request Monitoring next to the Codex account inspection entry.
-- As a local user, I can inspect token usage, estimated cost, and TPM trends over fixed recent windows.
-- As a local user, I can narrow charts by provider, auth file, client API key, and model.
-- As a local user, I can compare the same metrics globally and by provider/auth-file, API-key, and model dimensions.
+- As a local user, I can inspect per-bucket token usage, cumulative token usage, estimated cost, and TPM trends over fixed recent windows.
+- As a local user, I can narrow charts by provider/auth-file identity, client API key, and model.
+- As a local user, I can compare the same metrics globally and by provider, API-key, and model dimensions.
 
 Acceptance criteria:
 
 - A new `/monitoring/charts` page exists in the existing hash-router management UI.
 - `/monitoring` adds one entry beside Codex account inspection that links to the chart page.
 - Time range options are exactly: last 1 hour, last 5 hours, last 24 hours, last 7 days. Last 1 hour is the default.
-- Granularity options are hour and day. Hour is the default for 1h/5h/24h; day is the default for 7d.
+- Granularity is range-linked: 1h uses 10-minute buckets, 5h/24h use hourly buckets, and 7d uses daily buckets.
 - No custom date/time range is added.
-- Filters are supported and combinable: provider, auth file, client API key, and model.
+- Filters are supported and combinable: provider (including auth-file identity), client API key, and model.
 - Charts are ECharts line charts and render loading, error, and empty states.
 - The charts page visually fits beside the existing monitoring and Codex inspection pages instead of introducing a separate dashboard style.
-- Global charts show token structure over time, total estimated cost over time, and TPM over time.
-- Provider/auth-file, API-key, and model chart groups show the same three metric families.
-- Provider/auth-file, API-key, and model chart groups display all matching series without Top N limiting or `Other` aggregation.
+- The chart page shows exactly four full-width charts: token usage, cumulative token usage, cost, and TPM.
+- A dimension selector switches those three charts between global total, provider, API-key, and model series.
+- Provider, API-key, and model dimensions display all matching series without Top N limiting or `Other` aggregation.
 - Cost uses model prices from local SQLite `model_prices`; models without prices are treated as zero-cost and reported to the frontend for user visibility.
 - Data source is local SQLite only. No external collector, service, queue, or database is introduced.
 - Frontend and backend unit tests pass. Integration testing is out of scope and will be done by the user.
@@ -153,9 +153,8 @@ Query parameters:
 
 ```text
 range=1h|5h|24h|7d                 default: 1h
-granularity=hour|day                default: hour for 1h/5h/24h, day for 7d
-provider=<provider>                 optional exact provider filter
-authIndex=<auth index>              optional exact auth-file/auth-index filter
+granularity=10m|hour|day            range-linked: 1h=10m, 5h/24h=hour, 7d=day
+provider=<provider option value>    optional exact provider/auth-file filter
 apiKeyHash=<sha256 hash>            optional exact client API-key hash filter
 model=<model name>                  optional exact model filter
 ```
@@ -189,26 +188,24 @@ type UsageChartSeries = {
 
 type UsageChartsResponse = {
   range: '1h' | '5h' | '24h' | '7d';
-  granularity: 'hour' | 'day';
+  granularity: '10m' | 'hour' | 'day';
   startMs: number;
   endMs: number;
   bucketMs: number;
   filters: {
     provider?: string;
-    authIndex?: string;
     apiKeyHash?: string;
     model?: string;
   };
   options: {
-    providers: string[];
-    authFiles: Array<{ authIndex: string; label: string; provider?: string }>;
-    apiKeys: Array<{ apiKeyHash: string; label: string }>;
-    models: string[];
+    providers: Array<{ value: string; label: string; provider?: string; authIndex?: string }>;
+    apiKeys: Array<{ value: string; apiKeyHash: string; label: string }>;
+    models: Array<{ value: string; model: string; label: string }>;
   };
   global: {
     buckets: UsageChartMetricBucket[];
   };
-  byProviderAuthFile: {
+  byProvider: {
     series: UsageChartSeries[];
   };
   byApiKey: {
@@ -224,20 +221,22 @@ type UsageChartsResponse = {
 
 Contract notes:
 
+- This optimization supersedes the initial chart endpoint contract: label/value option objects and `byProvider` replace the earlier provider/auth-file split.
 - New response fields use camelCase consistently.
 - Existing `/v0/management/usage` response shape is not changed.
 - Empty stores return a valid empty chart response with buckets and empty series, not a server error.
 - Invalid query values return HTTP 400 using the existing CPA-PC error style: `{"error":"...","code":"request_failed"}`.
 - Unauthorized requests keep the existing management auth behavior.
 - SQL filters must be parameterized; query params must never be interpolated into SQL strings.
-- Series are not limited or aggregated by the backend; the response includes all matching provider/auth-file, API-key, and model series.
+- Series are not limited or aggregated by the backend; the response includes all matching provider, API-key, and model series.
 
 Metric definitions:
 
 - `inputTokens`, `outputTokens`, and `cachedTokens` are bucket totals from `usage_events`.
+- Cumulative token charts are frontend running totals over returned buckets for input, output, and cached tokens.
 - `totalCost` is calculated from `model_prices` per model: prompt cost uses `max(inputTokens - cachedTokens, 0)`, cache cost uses `cachedTokens`, and completion cost uses `outputTokens`, all priced per 1M tokens.
 - TPM values are per-bucket average tokens per minute: `bucketTokenTotal / bucketMinutes`, where `bucketMinutes` is the actual overlap between the bucket and selected range.
-- Provider/auth-file series are grouped by `(provider, auth_index)` and labeled with auth snapshots when available.
+- Provider series are grouped by auth-file identity when available, otherwise by provider, and labeled with auth/account/file snapshots when available.
 - API-key series are grouped by `api_key_hash` and labeled with aliases from `api_key_aliases` when available.
 - Model series are grouped by `model`.
 
@@ -301,9 +300,9 @@ Backend unit tests:
 
 - Store aggregation tests seed temporary SQLite with `usage_events`, `model_prices`, and `api_key_aliases` records.
 - Verify range bounds for `1h`, `5h`, `24h`, and `7d`.
-- Verify hour and day bucket generation, including empty buckets.
-- Verify provider/auth-file, API-key, and model filters can be combined.
-- Verify provider/auth-file, API-key, and model grouping produces deterministic ordering without dropping or aggregating series.
+- Verify 10-minute, hour, and day bucket generation, including empty buckets.
+- Verify provider, API-key, and model filters can be combined.
+- Verify provider, API-key, and model grouping produces deterministic ordering without dropping or aggregating series.
 - Verify cost calculation uses stored model prices and reports missing price models.
 - Verify TPM uses actual bucket overlap minutes for partial first/current buckets.
 
@@ -317,10 +316,10 @@ Backend route tests:
 Frontend unit tests:
 
 - API client builds correct query parameters and sends the management bearer token.
-- Chart option builders generate expected line series for token, cost, and TPM charts.
+- Chart option builders generate expected line series for token, cumulative token, cost, and TPM charts.
 - Filter option helpers preserve aliases/masked labels and do not expose raw API keys.
 - `MonitoringChartsPage` renders default 1h state, loading, empty, error, and data states.
-- Changing filters/range/granularity triggers a reload with the expected params.
+- Changing filters/range/dimension triggers a reload with the expected params.
 
 Required verification before implementation is considered complete:
 
@@ -358,7 +357,7 @@ Ask first:
 - Any change to existing `/v0/management/usage` behavior or response shape.
 - Any change to unrelated pages, existing monitoring tables, Codex inspection behavior, packaging, Windows scripts, or SDK versions.
 - Any later decision to cap, group, or aggregate chart series.
-- Any custom time range, minute-level chart granularity, polling/WebSocket behavior, or export feature for charts.
+- Any custom time range, manually selectable chart granularity, polling/WebSocket behavior, or export feature for charts.
 - Any decision to persist chart UI preferences beyond the current page state.
 
 Never:
@@ -374,8 +373,8 @@ Never:
 
 - This spec is reviewed and implementation starts only after the user explicitly asks to proceed.
 - `/monitoring/charts` is reachable from `/monitoring` via an entry beside Codex account inspection.
-- The chart page supports exactly the required ranges, filters, and hour/day granularity.
-- The chart page displays global, provider/auth-file, API-key, and model time-series line charts for token structure, estimated cost, and TPM.
+- The chart page supports exactly the required ranges, linked granularity, filters, and dimensions.
+- The chart page displays exactly four time-series line charts for token usage, cumulative token usage, cost, and TPM, split by the selected dimension.
 - Backend chart data comes from local SQLite and uses model prices for cost calculation.
 - Frontend unit tests, backend unit tests, lint, type-check, and build pass.
 - Existing request monitoring behavior and existing usage endpoints are not regressed.

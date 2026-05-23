@@ -12,7 +12,7 @@ import (
 	"github.com/HWliao/CPA-PC/internal/usage"
 )
 
-func TestUsageChartsBuildsGlobalHourlyBuckets(t *testing.T) {
+func TestUsageChartsBuildsGlobalTenMinuteBuckets(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -63,28 +63,27 @@ func TestUsageChartsBuildsGlobalHourlyBuckets(t *testing.T) {
 	}
 
 	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
-		Range:       usage.ChartRange1H,
-		Granularity: usage.ChartGranularityHour,
-		NowMS:       now,
+		Range: usage.ChartRange1H,
+		NowMS: now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if charts.Range != usage.ChartRange1H || charts.Granularity != usage.ChartGranularityHour {
+	if charts.Range != usage.ChartRange1H || charts.Granularity != usage.ChartGranularity10Minute {
 		t.Fatalf("range/granularity = %q/%q", charts.Range, charts.Granularity)
 	}
-	if len(charts.Global.Buckets) != 1 {
-		t.Fatalf("len(global buckets) = %d, want 1", len(charts.Global.Buckets))
+	if len(charts.Global.Buckets) != 6 {
+		t.Fatalf("len(global buckets) = %d, want 6", len(charts.Global.Buckets))
 	}
-	bucket := charts.Global.Buckets[0]
+	bucket := nonZeroBucket(t, charts.Global.Buckets)
 	if bucket.InputTokens != 1000 || bucket.OutputTokens != 500 || bucket.CachedTokens != 200 {
 		t.Fatalf("bucket tokens = %#v", bucket)
 	}
 	assertFloatNear(t, bucket.TotalCost, 0.0038)
-	assertFloatNear(t, bucket.TPMInput, 1000.0/60.0)
-	assertFloatNear(t, bucket.TPMOutput, 500.0/60.0)
-	assertFloatNear(t, bucket.TPMCached, 200.0/60.0)
+	assertFloatNear(t, bucket.TPMInput, 1000.0/10.0)
+	assertFloatNear(t, bucket.TPMOutput, 500.0/10.0)
+	assertFloatNear(t, bucket.TPMCached, 200.0/10.0)
 }
 
 func TestUsageChartsReturnsEmptyBuckets(t *testing.T) {
@@ -181,20 +180,23 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := charts.Options.Providers; !reflect.DeepEqual(got, []string{"gemini", "openai"}) {
-		t.Fatalf("providers = %#v", got)
+	if got := providerOptionLabels(charts.Options.Providers); !reflect.DeepEqual(got, []string{"Alice", "Bob"}) {
+		t.Fatalf("provider labels = %#v", got)
 	}
-	if got := authOptionLabels(charts.Options.AuthFiles); !reflect.DeepEqual(got, []string{"Alice", "Bob"}) {
-		t.Fatalf("auth labels = %#v", got)
+	if got := providerOptionValues(charts.Options.Providers); !reflect.DeepEqual(got, []string{"auth:auth-a", "auth:auth-b"}) {
+		t.Fatalf("provider values = %#v", got)
 	}
 	if got := apiKeyOptionLabels(charts.Options.APIKeys); !reflect.DeepEqual(got, []string{"Team A", "sha256:bbbbbbbbbbbb"}) {
 		t.Fatalf("api key labels = %#v", got)
 	}
-	if got := charts.Options.Models; !reflect.DeepEqual(got, []string{"gpt-priced", "missing-model"}) {
-		t.Fatalf("models = %#v", got)
+	if got := modelOptionLabels(charts.Options.Models); !reflect.DeepEqual(got, []string{"gpt-priced", "missing-model"}) {
+		t.Fatalf("model labels = %#v", got)
 	}
-	if len(charts.ByProviderAuthFile.Series) != 2 || len(charts.ByAPIKey.Series) != 2 || len(charts.ByModel.Series) != 2 {
-		t.Fatalf("series counts provider=%d api=%d model=%d", len(charts.ByProviderAuthFile.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
+	if len(charts.ByProvider.Series) != 2 || len(charts.ByAPIKey.Series) != 2 || len(charts.ByModel.Series) != 2 {
+		t.Fatalf("series counts provider=%d api=%d model=%d", len(charts.ByProvider.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
+	}
+	if got := seriesLabels(charts.ByProvider.Series); !reflect.DeepEqual(got, []string{"Alice", "Bob"}) {
+		t.Fatalf("provider series labels = %#v", got)
 	}
 	if got := seriesLabels(charts.ByAPIKey.Series); !reflect.DeepEqual(got, []string{"Team A", "sha256:bbbbbbbbbbbb"}) {
 		t.Fatalf("api series labels = %#v", got)
@@ -240,8 +242,8 @@ func TestUsageChartsSkipsAPIKeySeriesWithoutHash(t *testing.T) {
 	if len(charts.Options.APIKeys) != 0 || len(charts.ByAPIKey.Series) != 0 {
 		t.Fatalf("api key dimension should be empty, options=%#v series=%#v", charts.Options.APIKeys, charts.ByAPIKey.Series)
 	}
-	if len(charts.ByProviderAuthFile.Series) != 1 || len(charts.ByModel.Series) != 1 {
-		t.Fatalf("non-api-key dimensions should remain populated, provider=%d model=%d", len(charts.ByProviderAuthFile.Series), len(charts.ByModel.Series))
+	if len(charts.ByProvider.Series) != 1 || len(charts.ByModel.Series) != 1 {
+		t.Fatalf("non-api-key dimensions should remain populated, provider=%d model=%d", len(charts.ByProvider.Series), len(charts.ByModel.Series))
 	}
 }
 
@@ -290,8 +292,7 @@ func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
 		Range:       usage.ChartRange1H,
 		Granularity: usage.ChartGranularityHour,
-		Provider:    "openai",
-		AuthIndex:   "auth-a",
+		ProviderKey: "auth:auth-a",
 		APIKeyHash:  hashA,
 		Model:       "gpt-selected",
 		NowMS:       now,
@@ -300,16 +301,27 @@ func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bucket := charts.Global.Buckets[0]
+	bucket := nonZeroBucket(t, charts.Global.Buckets)
 	if bucket.InputTokens != 100 || bucket.OutputTokens != 50 || bucket.CachedTokens != 10 {
 		t.Fatalf("filtered global bucket = %#v", bucket)
 	}
-	if len(charts.ByProviderAuthFile.Series) != 1 || len(charts.ByAPIKey.Series) != 1 || len(charts.ByModel.Series) != 1 {
-		t.Fatalf("filtered series counts provider=%d api=%d model=%d", len(charts.ByProviderAuthFile.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
+	if len(charts.ByProvider.Series) != 1 || len(charts.ByAPIKey.Series) != 1 || len(charts.ByModel.Series) != 1 {
+		t.Fatalf("filtered series counts provider=%d api=%d model=%d", len(charts.ByProvider.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
 	}
-	if charts.Filters.Provider != "openai" || charts.Filters.AuthIndex != "auth-a" || charts.Filters.APIKeyHash != hashA || charts.Filters.Model != "gpt-selected" {
+	if charts.Filters.Provider != "auth:auth-a" || charts.Filters.APIKeyHash != hashA || charts.Filters.Model != "gpt-selected" {
 		t.Fatalf("filters = %#v", charts.Filters)
 	}
+}
+
+func nonZeroBucket(t *testing.T, buckets []usage.ChartMetricBucket) usage.ChartMetricBucket {
+	t.Helper()
+	for _, bucket := range buckets {
+		if bucket.InputTokens != 0 || bucket.OutputTokens != 0 || bucket.CachedTokens != 0 || bucket.TotalCost != 0 {
+			return bucket
+		}
+	}
+	t.Fatalf("no bucket contains usage values: %#v", buckets)
+	return usage.ChartMetricBucket{}
 }
 
 func assertFloatNear(t *testing.T, got, want float64) {
@@ -319,7 +331,7 @@ func assertFloatNear(t *testing.T, got, want float64) {
 	}
 }
 
-func authOptionLabels(options []usage.ChartAuthFileOption) []string {
+func providerOptionLabels(options []usage.ChartProviderOption) []string {
 	labels := make([]string, 0, len(options))
 	for _, option := range options {
 		labels = append(labels, option.Label)
@@ -328,7 +340,25 @@ func authOptionLabels(options []usage.ChartAuthFileOption) []string {
 	return labels
 }
 
+func providerOptionValues(options []usage.ChartProviderOption) []string {
+	values := make([]string, 0, len(options))
+	for _, option := range options {
+		values = append(values, option.Value)
+	}
+	sort.Strings(values)
+	return values
+}
+
 func apiKeyOptionLabels(options []usage.ChartAPIKeyOption) []string {
+	labels := make([]string, 0, len(options))
+	for _, option := range options {
+		labels = append(labels, option.Label)
+	}
+	sort.Strings(labels)
+	return labels
+}
+
+func modelOptionLabels(options []usage.ChartModelOption) []string {
 	labels := make([]string, 0, len(options))
 	for _, option := range options {
 		labels = append(labels, option.Label)

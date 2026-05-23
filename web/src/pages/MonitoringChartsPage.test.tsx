@@ -3,6 +3,7 @@ import { act, type ReactNode } from 'react';
 import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Select } from '@/components/ui/Select';
+import { EChartPanel } from '@/features/monitoring/charts/EChartPanel';
 import { mainRoutes } from '@/router/MainRoutes';
 import { useUsageCharts, type UseUsageChartsReturn } from '@/features/monitoring/charts/useUsageCharts';
 import type { UsageChartSeries, UsageChartsResponse } from '@/services/api/usageService';
@@ -45,22 +46,21 @@ const createHookState = (overrides: Partial<UseUsageChartsReturn> = {}): UseUsag
 
 const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): UsageChartsResponse => ({
   range: '1h',
-  granularity: 'hour',
+  granularity: '10m',
   startMs: 0,
-  endMs: 3600000,
-  bucketMs: 3600000,
+  endMs: 600000,
+  bucketMs: 600000,
   filters: {},
   options: {
-    providers: ['openai'],
-    authFiles: [{ authIndex: '2', label: 'Team Codex', provider: 'openai' }],
-    apiKeys: [{ apiKeyHash: 'hash-1', label: 'Build key' }],
-    models: ['gpt-5'],
+    providers: [{ value: 'auth:2', label: 'Team Codex', provider: 'openai', authIndex: '2' }],
+    apiKeys: [{ value: 'hash-1', apiKeyHash: 'hash-1', label: 'Build key' }],
+    models: [{ value: 'gpt-5', model: 'gpt-5', label: 'GPT-5' }],
   },
   global: {
     buckets: [
       {
         startMs: 0,
-        endMs: 3600000,
+        endMs: 600000,
         label: '10:00',
         inputTokens: 100,
         outputTokens: 25,
@@ -72,7 +72,7 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
       },
     ],
   },
-  byProviderAuthFile: { series: [] },
+  byProvider: { series: [] },
   byApiKey: { series: [] },
   byModel: { series: [] },
   missingPriceModels: [],
@@ -129,7 +129,7 @@ describe('MonitoringChartsPage', () => {
     vi.mocked(useUsageCharts).mockReturnValue(
       createHookState({
         charts: createChartsResponse({
-          options: { providers: [], authFiles: [], apiKeys: [], models: [] },
+          options: { providers: [], apiKeys: [], models: [] },
           global: {
             buckets: [
               {
@@ -153,7 +153,7 @@ describe('MonitoringChartsPage', () => {
     const html = renderToStaticMarkup(<MonitoringChartsPage />);
 
     expect(html).toContain('No chart data yet');
-    expect(html).not.toContain('Global tokens');
+    expect(html).not.toContain('Token usage');
   });
 
   it('renders global chart panels and missing price warnings', () => {
@@ -165,14 +165,15 @@ describe('MonitoringChartsPage', () => {
 
     const html = renderToStaticMarkup(<MonitoringChartsPage />);
 
-    expect(html).toContain('Global tokens');
-    expect(html).toContain('Global cost');
-    expect(html).toContain('Global TPM');
+    expect(html).toContain('Token usage');
+    expect(html).toContain('Cumulative token usage');
+    expect(html).toContain('Cost');
+    expect(html).toContain('TPM');
     expect(html).toContain('Missing model prices');
     expect(html).toContain('unknown-model');
   });
 
-  it('passes range, granularity, and filters to the chart loader', () => {
+  it('passes derived granularity and linked filters to the chart loader', () => {
     vi.mocked(useUsageCharts).mockImplementation(() =>
       createHookState({ charts: createChartsResponse() })
     );
@@ -194,7 +195,7 @@ describe('MonitoringChartsPage', () => {
       return match;
     };
 
-    expect(latestParams()).toEqual({ range: '1h', granularity: 'hour' });
+    expect(latestParams()).toEqual({ range: '1h', granularity: '10m' });
 
     act(() => {
       selectByLabel('Time range').props.onChange('7d');
@@ -202,17 +203,24 @@ describe('MonitoringChartsPage', () => {
     expect(latestParams()).toEqual({ range: '7d', granularity: 'day' });
 
     act(() => {
-      selectByLabel('Granularity').props.onChange('hour');
-      selectByLabel('Provider').props.onChange('openai');
-      selectByLabel('Auth file').props.onChange('2');
+      selectByLabel('Provider').props.onChange('auth:2');
       selectByLabel('API key').props.onChange('hash-1');
       selectByLabel('Model').props.onChange('gpt-5');
     });
     expect(latestParams()).toEqual({
       range: '7d',
-      granularity: 'hour',
-      provider: 'openai',
-      authIndex: '2',
+      granularity: 'day',
+      provider: 'auth:2',
+      apiKeyHash: 'hash-1',
+      model: 'gpt-5',
+    });
+
+    act(() => {
+      selectByLabel('Chart dimension').props.onChange('provider');
+    });
+    expect(latestParams()).toEqual({
+      range: '7d',
+      granularity: 'day',
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });
@@ -220,38 +228,47 @@ describe('MonitoringChartsPage', () => {
     renderer!.unmount();
   });
 
-  it('renders dimension chart sections for non-empty series', () => {
-    vi.mocked(useUsageCharts).mockReturnValue(
+  it('renders four full-page chart panels', () => {
+    vi.mocked(useUsageCharts).mockReturnValue(createHookState({ charts: createChartsResponse() }));
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<MonitoringChartsPage />);
+    });
+
+    expect(renderer!.root.findAllByType(EChartPanel)).toHaveLength(4);
+    renderer!.unmount();
+  });
+
+  it('switches the four charts to the selected dimension series', () => {
+    vi.mocked(useUsageCharts).mockImplementation(() =>
       createHookState({
         charts: createChartsResponse({
-          byProviderAuthFile: { series: [createSeries('provider', 'OpenAI / Team Codex')] },
+          byProvider: { series: [createSeries('auth:2', 'Team Codex')] },
           byApiKey: { series: [createSeries('api-key', 'Build key')] },
-          byModel: { series: [createSeries('model', 'gpt-5')] },
+          byModel: { series: [createSeries('model', 'GPT-5')] },
         }),
       })
     );
 
-    const html = renderToStaticMarkup(<MonitoringChartsPage />);
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<MonitoringChartsPage />);
+    });
+    const dimensionSelect = renderer!.root
+      .findAllByType(Select)
+      .find((node) => node.props.ariaLabel === 'Chart dimension');
+    if (!dimensionSelect) throw new Error('Dimension select not found');
 
-    expect(html).toContain('Provider/auth files');
-    expect(html).toContain('Provider/auth tokens');
-    expect(html).toContain('Provider/auth cost');
-    expect(html).toContain('Provider/auth TPM');
-    expect(html).toContain('API-key tokens');
-    expect(html).toContain('API-key cost');
-    expect(html).toContain('API-key TPM');
-    expect(html).toContain('Model tokens');
-    expect(html).toContain('Model cost');
-    expect(html).toContain('Model TPM');
-  });
+    act(() => {
+      dimensionSelect.props.onChange('provider');
+    });
 
-  it('renders empty states for dimensions without series', () => {
-    vi.mocked(useUsageCharts).mockReturnValue(createHookState({ charts: createChartsResponse() }));
-
-    const html = renderToStaticMarkup(<MonitoringChartsPage />);
-
-    expect(html).toContain('No provider/auth-file series');
-    expect(html).toContain('No API-key series');
-    expect(html).toContain('No model series');
+    const chartOptions = renderer!.root.findAllByType(EChartPanel).map((node) => node.props.option);
+    expect(chartOptions[0].series[0].name).toBe('Team Codex input tokens');
+    expect(chartOptions[1].series[0].name).toBe('Team Codex input tokens');
+    expect(chartOptions[2].series[0].name).toBe('Team Codex');
+    expect(chartOptions[3].series[0].name).toBe('Team Codex input TPM');
+    renderer!.unmount();
   });
 });

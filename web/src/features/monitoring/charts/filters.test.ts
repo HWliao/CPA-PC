@@ -4,6 +4,7 @@ import {
   buildUsageChartsQueryParams,
   createDefaultUsageChartsFilterState,
   resolveDefaultUsageChartsGranularity,
+  shouldDisableUsageChartsFilter,
 } from './filters';
 
 describe('usage chart filters', () => {
@@ -11,8 +12,8 @@ describe('usage chart filters', () => {
     expect(USAGE_CHART_RANGE_OPTIONS.map((option) => option.value)).toEqual(['1h', '5h', '24h', '7d']);
   });
 
-  it('uses hour granularity except for the seven day default', () => {
-    expect(resolveDefaultUsageChartsGranularity('1h')).toBe('hour');
+  it('derives granularity from the selected range', () => {
+    expect(resolveDefaultUsageChartsGranularity('1h')).toBe('10m');
     expect(resolveDefaultUsageChartsGranularity('5h')).toBe('hour');
     expect(resolveDefaultUsageChartsGranularity('24h')).toBe('hour');
     expect(resolveDefaultUsageChartsGranularity('7d')).toBe('day');
@@ -21,15 +22,14 @@ describe('usage chart filters', () => {
   it('builds query params without empty filter values', () => {
     expect(buildUsageChartsQueryParams(createDefaultUsageChartsFilterState())).toEqual({
       range: '1h',
-      granularity: 'hour',
+      granularity: '10m',
     });
 
     expect(
       buildUsageChartsQueryParams({
         range: '7d',
-        granularity: 'day',
+        dimension: 'global',
         provider: ' openai ',
-        authIndex: '2',
         apiKeyHash: 'hash-1',
         model: 'gpt-5',
       })
@@ -37,9 +37,28 @@ describe('usage chart filters', () => {
       range: '7d',
       granularity: 'day',
       provider: 'openai',
-      authIndex: '2',
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });
+  });
+
+  it('omits filters that are used as the active chart dimension', () => {
+    expect(
+      buildUsageChartsQueryParams({
+        range: '24h',
+        dimension: 'provider',
+        provider: 'auth:2',
+        apiKeyHash: 'hash-1',
+        model: 'gpt-5',
+      })
+    ).toEqual({
+      range: '24h',
+      granularity: 'hour',
+      apiKeyHash: 'hash-1',
+      model: 'gpt-5',
+    });
+
+    expect(shouldDisableUsageChartsFilter('provider', 'provider')).toBe(true);
+    expect(shouldDisableUsageChartsFilter('provider', 'apiKey')).toBe(false);
   });
 });

@@ -10,19 +10,21 @@ import { EChartPanel } from '@/features/monitoring/charts/EChartPanel';
 import {
   buildGlobalUsageChartOption,
   buildSeriesUsageChartOption,
+  formatChartMetricValue,
   type UsageChartMetricFamily,
 } from '@/features/monitoring/charts/chartOptions';
 import {
-  USAGE_CHART_GRANULARITY_OPTIONS,
+  USAGE_CHART_DIMENSION_OPTIONS,
   USAGE_CHART_RANGE_OPTIONS,
   buildUsageChartsQueryParams,
   createDefaultUsageChartsFilterState,
-  resolveDefaultUsageChartsGranularity,
+  shouldDisableUsageChartsFilter,
+  type UsageChartsDimension,
   type UsageChartsFilterState,
 } from '@/features/monitoring/charts/filters';
 import { useUsageCharts } from '@/features/monitoring/charts/useUsageCharts';
-import type { UsageChartSeries, UsageChartsGranularity, UsageChartsRange } from '@/services/api/usageService';
-import { formatCompactNumber, formatUsd } from '@/utils/usage';
+import type { UsageChartSeries, UsageChartsRange } from '@/services/api/usageService';
+import { formatUsd } from '@/utils/usage';
 import styles from './MonitoringChartsPage.module.scss';
 
 export function MonitoringChartsPage() {
@@ -53,150 +55,72 @@ export function MonitoringChartsPage() {
       bucket.tpmOutput !== 0 ||
       bucket.tpmCached !== 0
   );
+  const providerSeries = charts?.byProvider.series ?? [];
+  const apiKeySeries = charts?.byApiKey.series ?? [];
+  const modelSeries = charts?.byModel.series ?? [];
   const hasDimensionSeries = Boolean(
-    charts &&
-      (charts.byProviderAuthFile.series.length > 0 ||
-        charts.byApiKey.series.length > 0 ||
-        charts.byModel.series.length > 0)
+    charts && (providerSeries.length > 0 || apiKeySeries.length > 0 || modelSeries.length > 0)
   );
-  const hasData = Boolean(
-    charts && (hasGlobalUsageValues || hasDimensionSeries)
-  );
+  const hasData = Boolean(charts && (hasGlobalUsageValues || hasDimensionSeries));
   const missingPriceModels = charts?.missingPriceModels ?? [];
   const providerOptions = [
     { value: '', label: t('monitoring.charts_filter_all_providers', { defaultValue: 'All providers' }) },
-    ...(charts?.options.providers ?? []).map((provider) => ({ value: provider, label: provider })),
-  ];
-  const authFileOptions = [
-    { value: '', label: t('monitoring.charts_filter_all_auth_files', { defaultValue: 'All auth files' }) },
-    ...(charts?.options.authFiles ?? []).map((item) => ({ value: item.authIndex, label: item.label })),
+    ...(charts?.options.providers ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
   const apiKeyOptions = [
     { value: '', label: t('monitoring.charts_filter_all_api_keys', { defaultValue: 'All API keys' }) },
-    ...(charts?.options.apiKeys ?? []).map((item) => ({ value: item.apiKeyHash, label: item.label })),
+    ...(charts?.options.apiKeys ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
   const modelOptions = [
     { value: '', label: t('monitoring.charts_filter_all_models', { defaultValue: 'All models' }) },
-    ...(charts?.options.models ?? []).map((model) => ({ value: model, label: model })),
+    ...(charts?.options.models ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
-  const globalTokenTitle = t('monitoring.charts_global_tokens', { defaultValue: 'Global tokens' });
-  const globalCostTitle = t('monitoring.charts_global_cost', { defaultValue: 'Global cost' });
-  const globalTpmTitle = t('monitoring.charts_global_tpm', { defaultValue: 'Global TPM' });
-  const dimensionGroups: Array<{
-    key: string;
-    title: string;
-    description: string;
-    emptyTitle: string;
-    emptyDescription: string;
-    series: UsageChartSeries[];
-    charts: Array<{ family: UsageChartMetricFamily; title: string; description: string }>;
-  }> = [
+  const dimensionOptions = USAGE_CHART_DIMENSION_OPTIONS.map((option) => ({
+    value: option.value,
+    label: t(option.labelKey, { defaultValue: option.defaultLabel }),
+  }));
+  const activeDimensionLabel =
+    dimensionOptions.find((option) => option.value === filterState.dimension)?.label ??
+    t('monitoring.charts_dimension_global', { defaultValue: 'Global total' });
+  const activeSeries = resolveActiveDimensionSeries(filterState.dimension, {
+    provider: providerSeries,
+    apiKey: apiKeySeries,
+    model: modelSeries,
+  });
+  const hasActiveChartData = filterState.dimension === 'global' ? hasGlobalUsageValues : activeSeries.length > 0;
+  const providerFilterDisabled = shouldDisableUsageChartsFilter('provider', filterState.dimension);
+  const apiKeyFilterDisabled = shouldDisableUsageChartsFilter('apiKey', filterState.dimension);
+  const modelFilterDisabled = shouldDisableUsageChartsFilter('model', filterState.dimension);
+  const metricCharts: Array<{ family: UsageChartMetricFamily; title: string; description: string }> = [
     {
-      key: 'provider-auth',
-      title: t('monitoring.charts_provider_auth_title', { defaultValue: 'Provider/auth files' }),
-      description: t('monitoring.charts_provider_auth_desc', {
-        defaultValue: 'Compare each returned provider and auth-file series.',
+      family: 'tokens',
+      title: t('monitoring.charts_tokens_title', { defaultValue: 'Token usage' }),
+      description: t('monitoring.charts_tokens_desc', {
+        defaultValue: 'Input, output, and cached tokens by bucket.',
       }),
-      emptyTitle: t('monitoring.charts_provider_auth_empty_title', {
-        defaultValue: 'No provider/auth-file series',
-      }),
-      emptyDescription: t('monitoring.charts_provider_auth_empty_desc', {
-        defaultValue: 'Provider and auth-file series will appear when matching usage events exist.',
-      }),
-      series: charts?.byProviderAuthFile.series ?? [],
-      charts: [
-        {
-          family: 'tokens',
-          title: t('monitoring.charts_provider_auth_tokens', { defaultValue: 'Provider/auth tokens' }),
-          description: t('monitoring.charts_provider_auth_tokens_desc', {
-            defaultValue: 'Token structure for every provider/auth-file series.',
-          }),
-        },
-        {
-          family: 'cost',
-          title: t('monitoring.charts_provider_auth_cost', { defaultValue: 'Provider/auth cost' }),
-          description: t('monitoring.charts_provider_auth_cost_desc', {
-            defaultValue: 'Estimated spend for every provider/auth-file series.',
-          }),
-        },
-        {
-          family: 'tpm',
-          title: t('monitoring.charts_provider_auth_tpm', { defaultValue: 'Provider/auth TPM' }),
-          description: t('monitoring.charts_provider_auth_tpm_desc', {
-            defaultValue: 'Tokens per minute for every provider/auth-file series.',
-          }),
-        },
-      ],
     },
     {
-      key: 'api-key',
-      title: t('monitoring.charts_api_key_title', { defaultValue: 'API keys' }),
-      description: t('monitoring.charts_api_key_desc', {
-        defaultValue: 'Compare usage by API-key alias or hash prefix.',
+      family: 'cumulativeTokens',
+      title: t('monitoring.charts_cumulative_tokens_title', {
+        defaultValue: 'Cumulative token usage',
       }),
-      emptyTitle: t('monitoring.charts_api_key_empty_title', { defaultValue: 'No API-key series' }),
-      emptyDescription: t('monitoring.charts_api_key_empty_desc', {
-        defaultValue: 'API-key series will appear when matching usage events include key hashes.',
+      description: t('monitoring.charts_cumulative_tokens_desc', {
+        defaultValue: 'Running input, output, and cached token totals over time.',
       }),
-      series: charts?.byApiKey.series ?? [],
-      charts: [
-        {
-          family: 'tokens',
-          title: t('monitoring.charts_api_key_tokens', { defaultValue: 'API-key tokens' }),
-          description: t('monitoring.charts_api_key_tokens_desc', {
-            defaultValue: 'Token structure for every API-key series.',
-          }),
-        },
-        {
-          family: 'cost',
-          title: t('monitoring.charts_api_key_cost', { defaultValue: 'API-key cost' }),
-          description: t('monitoring.charts_api_key_cost_desc', {
-            defaultValue: 'Estimated spend for every API-key series.',
-          }),
-        },
-        {
-          family: 'tpm',
-          title: t('monitoring.charts_api_key_tpm', { defaultValue: 'API-key TPM' }),
-          description: t('monitoring.charts_api_key_tpm_desc', {
-            defaultValue: 'Tokens per minute for every API-key series.',
-          }),
-        },
-      ],
     },
     {
-      key: 'model',
-      title: t('monitoring.charts_model_title', { defaultValue: 'Models' }),
-      description: t('monitoring.charts_model_desc', {
-        defaultValue: 'Compare usage across all returned model series.',
+      family: 'cost',
+      title: t('monitoring.charts_cost_title', { defaultValue: 'Cost' }),
+      description: t('monitoring.charts_cost_desc', {
+        defaultValue: 'Estimated spend by bucket based on configured model prices.',
       }),
-      emptyTitle: t('monitoring.charts_model_empty_title', { defaultValue: 'No model series' }),
-      emptyDescription: t('monitoring.charts_model_empty_desc', {
-        defaultValue: 'Model series will appear when matching usage events include model names.',
+    },
+    {
+      family: 'tpm',
+      title: t('monitoring.charts_tpm_title', { defaultValue: 'TPM' }),
+      description: t('monitoring.charts_tpm_desc', {
+        defaultValue: 'Input, output, and cached tokens per minute.',
       }),
-      series: charts?.byModel.series ?? [],
-      charts: [
-        {
-          family: 'tokens',
-          title: t('monitoring.charts_model_tokens', { defaultValue: 'Model tokens' }),
-          description: t('monitoring.charts_model_tokens_desc', {
-            defaultValue: 'Token structure for every model series.',
-          }),
-        },
-        {
-          family: 'cost',
-          title: t('monitoring.charts_model_cost', { defaultValue: 'Model cost' }),
-          description: t('monitoring.charts_model_cost_desc', {
-            defaultValue: 'Estimated spend for every model series.',
-          }),
-        },
-        {
-          family: 'tpm',
-          title: t('monitoring.charts_model_tpm', { defaultValue: 'Model TPM' }),
-          description: t('monitoring.charts_model_tpm_desc', {
-            defaultValue: 'Tokens per minute for every model series.',
-          }),
-        },
-      ],
     },
   ];
   const statusTone = error ? 'bad' : loading ? 'info' : usageServiceAvailable ? 'good' : 'warn';
@@ -209,17 +133,13 @@ export function MonitoringChartsPage() {
         : t('monitoring.charts_status_unavailable', { defaultValue: 'Usage service unavailable' });
 
   const handleRangeChange = (value: string) => {
-    const range = value as UsageChartsRange;
-    setFilterState((current) => ({
-      ...current,
-      range,
-      granularity: resolveDefaultUsageChartsGranularity(range),
-    }));
+    setFilterState((current) => ({ ...current, range: value as UsageChartsRange }));
   };
-  const handleGranularityChange = (value: string) => {
-    setFilterState((current) => ({ ...current, granularity: value as UsageChartsGranularity }));
+  const handleDimensionChange = (value: string) => {
+    const dimension = value as UsageChartsDimension;
+    setFilterState((current) => clearFilterForDimension({ ...current, dimension }, dimension));
   };
-  const handleFilterChange = (key: keyof Pick<UsageChartsFilterState, 'provider' | 'authIndex' | 'apiKeyHash' | 'model'>) =>
+  const handleFilterChange = (key: keyof Pick<UsageChartsFilterState, 'provider' | 'apiKeyHash' | 'model'>) =>
     (value: string) => {
       setFilterState((current) => ({ ...current, [key]: value }));
     };
@@ -247,6 +167,9 @@ export function MonitoringChartsPage() {
             <div className={styles.statusMeta}>
               <span>
                 {`${t('monitoring.charts_range_default', { defaultValue: 'Range' })}: ${charts?.range ?? '1h'}`}
+              </span>
+              <span>
+                {`${t('monitoring.charts_granularity_label', { defaultValue: 'Granularity' })}: ${charts?.granularity ?? chartParams.granularity ?? '10m'}`}
               </span>
               <span>
                 {`${t('monitoring.charts_bucket_count', { defaultValue: 'Buckets' })}: ${globalBucketCount}`}
@@ -293,15 +216,12 @@ export function MonitoringChartsPage() {
             />
           </div>
           <div className={styles.filterField}>
-            <span>{t('monitoring.charts_granularity_label', { defaultValue: 'Granularity' })}</span>
+            <span>{t('monitoring.charts_dimension_label', { defaultValue: 'Chart dimension' })}</span>
             <Select
-              ariaLabel={t('monitoring.charts_granularity_label', { defaultValue: 'Granularity' })}
-              value={filterState.granularity}
-              options={USAGE_CHART_GRANULARITY_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.labelKey, { defaultValue: option.defaultLabel }),
-              }))}
-              onChange={handleGranularityChange}
+              ariaLabel={t('monitoring.charts_dimension_label', { defaultValue: 'Chart dimension' })}
+              value={filterState.dimension}
+              options={dimensionOptions}
+              onChange={handleDimensionChange}
             />
           </div>
           <div className={styles.filterField}>
@@ -311,16 +231,13 @@ export function MonitoringChartsPage() {
               value={filterState.provider}
               options={providerOptions}
               onChange={handleFilterChange('provider')}
+              disabled={providerFilterDisabled}
             />
-          </div>
-          <div className={styles.filterField}>
-            <span>{t('monitoring.charts_auth_file_label', { defaultValue: 'Auth file' })}</span>
-            <Select
-              ariaLabel={t('monitoring.charts_auth_file_label', { defaultValue: 'Auth file' })}
-              value={filterState.authIndex}
-              options={authFileOptions}
-              onChange={handleFilterChange('authIndex')}
-            />
+            {providerFilterDisabled ? (
+              <small className={styles.filterHint}>
+                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
+              </small>
+            ) : null}
           </div>
           <div className={styles.filterField}>
             <span>{t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}</span>
@@ -329,7 +246,13 @@ export function MonitoringChartsPage() {
               value={filterState.apiKeyHash}
               options={apiKeyOptions}
               onChange={handleFilterChange('apiKeyHash')}
+              disabled={apiKeyFilterDisabled}
             />
+            {apiKeyFilterDisabled ? (
+              <small className={styles.filterHint}>
+                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
+              </small>
+            ) : null}
           </div>
           <div className={styles.filterField}>
             <span>{t('monitoring.charts_model_label', { defaultValue: 'Model' })}</span>
@@ -338,7 +261,13 @@ export function MonitoringChartsPage() {
               value={filterState.model}
               options={modelOptions}
               onChange={handleFilterChange('model')}
+              disabled={modelFilterDisabled}
             />
+            {modelFilterDisabled ? (
+              <small className={styles.filterHint}>
+                {t('monitoring.charts_filter_used_as_dimension', { defaultValue: 'Used as chart series' })}
+              </small>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -368,15 +297,15 @@ export function MonitoringChartsPage() {
           <section className={styles.summaryGrid}>
             <Card className={styles.summaryCard}>
               <span>{t('monitoring.input_tokens')}</span>
-              <strong>{formatCompactNumber(globalTotals.inputTokens)}</strong>
+              <strong>{formatChartMetricValue(globalTotals.inputTokens)}</strong>
             </Card>
             <Card className={styles.summaryCard}>
               <span>{t('monitoring.output_tokens')}</span>
-              <strong>{formatCompactNumber(globalTotals.outputTokens)}</strong>
+              <strong>{formatChartMetricValue(globalTotals.outputTokens)}</strong>
             </Card>
             <Card className={styles.summaryCard}>
               <span>{t('monitoring.cached_tokens')}</span>
-              <strong>{formatCompactNumber(globalTotals.cachedTokens)}</strong>
+              <strong>{formatChartMetricValue(globalTotals.cachedTokens)}</strong>
             </Card>
             <Card className={styles.summaryCard}>
               <span>{t('monitoring.estimated_cost')}</span>
@@ -404,103 +333,77 @@ export function MonitoringChartsPage() {
             </Card>
           ) : null}
 
-          <section className={styles.chartGrid}>
-            <Card className={styles.chartCard}>
-              <div className={styles.chartHeader}>
-                <h2>{globalTokenTitle}</h2>
-                <span>
-                  {t('monitoring.charts_global_tokens_desc', {
-                    defaultValue: 'Input, output, and cached tokens by bucket.',
-                  })}
-                </span>
-              </div>
-              <EChartPanel
-                ariaLabel={globalTokenTitle}
-                className={styles.chartCanvas}
-                option={buildGlobalUsageChartOption({
-                  title: globalTokenTitle,
-                  family: 'tokens',
-                  buckets: globalBuckets,
-                })}
-              />
+          {!hasActiveChartData ? (
+            <Card className={styles.dimensionEmpty}>
+              <IconChartLine size={20} />
+              <strong>
+                {filterState.dimension === 'global'
+                  ? t('monitoring.charts_empty_title', { defaultValue: 'No chart data yet' })
+                  : t('monitoring.charts_dimension_empty_title', {
+                      defaultValue: `No ${activeDimensionLabel} series`,
+                    })}
+              </strong>
+              <span>
+                {filterState.dimension === 'global'
+                  ? t('monitoring.charts_empty_desc', {
+                      defaultValue: 'Recent usage events will appear here after requests are recorded.',
+                    })
+                  : t('monitoring.charts_dimension_empty_desc', {
+                      defaultValue: `Switch dimensions or adjust filters when ${activeDimensionLabel} series are unavailable.`,
+                    })}
+              </span>
             </Card>
-            <Card className={styles.chartCard}>
-              <div className={styles.chartHeader}>
-                <h2>{globalCostTitle}</h2>
-                <span>
-                  {t('monitoring.charts_global_cost_desc', {
-                    defaultValue: 'Estimated spend by bucket based on configured model prices.',
-                  })}
-                </span>
-              </div>
-              <EChartPanel
-                ariaLabel={globalCostTitle}
-                className={styles.chartCanvas}
-                option={buildGlobalUsageChartOption({
-                  title: globalCostTitle,
-                  family: 'cost',
-                  buckets: globalBuckets,
-                })}
-              />
-            </Card>
-            <Card className={styles.chartCard}>
-              <div className={styles.chartHeader}>
-                <h2>{globalTpmTitle}</h2>
-                <span>
-                  {t('monitoring.charts_global_tpm_desc', {
-                    defaultValue: 'Input, output, and cached tokens per minute.',
-                  })}
-                </span>
-              </div>
-              <EChartPanel
-                ariaLabel={globalTpmTitle}
-                className={styles.chartCanvas}
-                option={buildGlobalUsageChartOption({
-                  title: globalTpmTitle,
-                  family: 'tpm',
-                  buckets: globalBuckets,
-                })}
-              />
-            </Card>
-          </section>
-
-          {dimensionGroups.map((group) => (
-            <section key={group.key} className={styles.dimensionSection}>
-              <div className={styles.dimensionHeader}>
-                <h2>{group.title}</h2>
-                <span>{group.description}</span>
-              </div>
-              {group.series.length === 0 ? (
-                <Card className={styles.dimensionEmpty}>
-                  <IconChartLine size={20} />
-                  <strong>{group.emptyTitle}</strong>
-                  <span>{group.emptyDescription}</span>
+          ) : (
+            <section className={styles.chartGrid}>
+              {metricCharts.map((chart) => (
+                <Card key={chart.family} className={styles.chartCard}>
+                  <div className={styles.chartHeader}>
+                    <h2>{chart.title}</h2>
+                    <span>{`${activeDimensionLabel}: ${chart.description}`}</span>
+                  </div>
+                  <EChartPanel
+                    ariaLabel={`${activeDimensionLabel} ${chart.title}`}
+                    className={styles.chartCanvas}
+                    option={
+                      filterState.dimension === 'global'
+                        ? buildGlobalUsageChartOption({
+                            title: chart.title,
+                            family: chart.family,
+                            buckets: globalBuckets,
+                          })
+                        : buildSeriesUsageChartOption({
+                            title: chart.title,
+                            family: chart.family,
+                            series: activeSeries,
+                          })
+                    }
+                  />
                 </Card>
-              ) : (
-                <div className={styles.chartGrid}>
-                  {group.charts.map((chart) => (
-                    <Card key={chart.family} className={styles.chartCard}>
-                      <div className={styles.chartHeader}>
-                        <h2>{chart.title}</h2>
-                        <span>{chart.description}</span>
-                      </div>
-                      <EChartPanel
-                        ariaLabel={chart.title}
-                        className={styles.chartCanvas}
-                        option={buildSeriesUsageChartOption({
-                          title: chart.title,
-                          family: chart.family,
-                          series: group.series,
-                        })}
-                      />
-                    </Card>
-                  ))}
-                </div>
-              )}
+              ))}
             </section>
-          ))}
+          )}
         </>
       )}
     </div>
   );
+}
+
+function resolveActiveDimensionSeries(
+  dimension: UsageChartsDimension,
+  series: Record<Exclude<UsageChartsDimension, 'global'>, UsageChartSeries[]>
+): UsageChartSeries[] {
+  if (dimension === 'global') return [];
+  return series[dimension];
+}
+
+function clearFilterForDimension(
+  state: UsageChartsFilterState,
+  dimension: UsageChartsDimension
+): UsageChartsFilterState {
+  return {
+    ...state,
+    provider: dimension === 'provider' ? '' : state.provider,
+    apiKeyHash: dimension === 'apiKey' ? '' : state.apiKeyHash,
+    model: dimension === 'model' ? '' : state.model,
+  };
 }

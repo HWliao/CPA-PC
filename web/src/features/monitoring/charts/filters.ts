@@ -1,10 +1,11 @@
 import type { UsageChartsGranularity, UsageChartsQueryParams, UsageChartsRange } from '@/services/api/usageService';
 
+export type UsageChartsDimension = 'global' | 'provider' | 'apiKey' | 'model';
+
 export type UsageChartsFilterState = {
   range: UsageChartsRange;
-  granularity: UsageChartsGranularity;
+  dimension: UsageChartsDimension;
   provider: string;
-  authIndex: string;
   apiKeyHash: string;
   model: string;
 };
@@ -25,22 +26,42 @@ export const USAGE_CHART_GRANULARITY_OPTIONS: Array<{
   labelKey: string;
   defaultLabel: string;
 }> = [
+  { value: '10m', labelKey: 'monitoring.charts_granularity_10m', defaultLabel: '10 minutes' },
   { value: 'hour', labelKey: 'monitoring.charts_granularity_hour', defaultLabel: 'Hourly' },
   { value: 'day', labelKey: 'monitoring.charts_granularity_day', defaultLabel: 'Daily' },
 ];
 
+export const USAGE_CHART_DIMENSION_OPTIONS: Array<{
+  value: UsageChartsDimension;
+  labelKey: string;
+  defaultLabel: string;
+}> = [
+  { value: 'global', labelKey: 'monitoring.charts_dimension_global', defaultLabel: 'Global total' },
+  { value: 'provider', labelKey: 'monitoring.charts_dimension_provider', defaultLabel: 'Provider' },
+  { value: 'apiKey', labelKey: 'monitoring.charts_dimension_api_key', defaultLabel: 'API key' },
+  { value: 'model', labelKey: 'monitoring.charts_dimension_model', defaultLabel: 'Model' },
+];
+
 export const createDefaultUsageChartsFilterState = (): UsageChartsFilterState => ({
   range: '1h',
-  granularity: 'hour',
+  dimension: 'global',
   provider: '',
-  authIndex: '',
   apiKeyHash: '',
   model: '',
 });
 
 export const resolveDefaultUsageChartsGranularity = (
   range: UsageChartsRange
-): UsageChartsGranularity => (range === '7d' ? 'day' : 'hour');
+): UsageChartsGranularity => {
+  if (range === '1h') return '10m';
+  if (range === '7d') return 'day';
+  return 'hour';
+};
+
+export const shouldDisableUsageChartsFilter = (
+  filter: Exclude<UsageChartsDimension, 'global'>,
+  dimension: UsageChartsDimension
+): boolean => filter === dimension;
 
 const appendNonEmptyParam = <K extends keyof UsageChartsQueryParams>(
   params: UsageChartsQueryParams,
@@ -56,12 +77,17 @@ const appendNonEmptyParam = <K extends keyof UsageChartsQueryParams>(
 export function buildUsageChartsQueryParams(state: UsageChartsFilterState): UsageChartsQueryParams {
   const params: UsageChartsQueryParams = {
     range: state.range,
-    granularity: state.granularity,
+    granularity: resolveDefaultUsageChartsGranularity(state.range),
   };
 
-  appendNonEmptyParam(params, 'provider', state.provider);
-  appendNonEmptyParam(params, 'authIndex', state.authIndex);
-  appendNonEmptyParam(params, 'apiKeyHash', state.apiKeyHash);
-  appendNonEmptyParam(params, 'model', state.model);
+  if (!shouldDisableUsageChartsFilter('provider', state.dimension)) {
+    appendNonEmptyParam(params, 'provider', state.provider);
+  }
+  if (!shouldDisableUsageChartsFilter('apiKey', state.dimension)) {
+    appendNonEmptyParam(params, 'apiKeyHash', state.apiKeyHash);
+  }
+  if (!shouldDisableUsageChartsFilter('model', state.dimension)) {
+    appendNonEmptyParam(params, 'model', state.model);
+  }
   return params;
 }

@@ -19,13 +19,15 @@ const (
 type ChartGranularity string
 
 const (
-	ChartGranularityHour ChartGranularity = "hour"
-	ChartGranularityDay  ChartGranularity = "day"
+	ChartGranularity10Minute ChartGranularity = "10m"
+	ChartGranularityHour     ChartGranularity = "hour"
+	ChartGranularityDay      ChartGranularity = "day"
 )
 
 type ChartQuery struct {
 	Range       ChartRange
 	Granularity ChartGranularity
+	ProviderKey string
 	Provider    string
 	AuthIndex   string
 	APIKeyHash  string
@@ -63,27 +65,33 @@ type ChartSeries struct {
 
 type ChartFilters struct {
 	Provider   string `json:"provider,omitempty"`
-	AuthIndex  string `json:"authIndex,omitempty"`
 	APIKeyHash string `json:"apiKeyHash,omitempty"`
 	Model      string `json:"model,omitempty"`
 }
 
-type ChartAuthFileOption struct {
-	AuthIndex string `json:"authIndex"`
+type ChartProviderOption struct {
+	Value     string `json:"value"`
 	Label     string `json:"label"`
 	Provider  string `json:"provider,omitempty"`
+	AuthIndex string `json:"authIndex,omitempty"`
 }
 
 type ChartAPIKeyOption struct {
+	Value      string `json:"value"`
 	APIKeyHash string `json:"apiKeyHash"`
 	Label      string `json:"label"`
 }
 
+type ChartModelOption struct {
+	Value string `json:"value"`
+	Model string `json:"model"`
+	Label string `json:"label"`
+}
+
 type ChartOptions struct {
-	Providers []string              `json:"providers"`
-	AuthFiles []ChartAuthFileOption `json:"authFiles"`
+	Providers []ChartProviderOption `json:"providers"`
 	APIKeys   []ChartAPIKeyOption   `json:"apiKeys"`
-	Models    []string              `json:"models"`
+	Models    []ChartModelOption    `json:"models"`
 }
 
 type ChartSeriesGroup struct {
@@ -99,7 +107,7 @@ type ChartsResponse struct {
 	Filters            ChartFilters     `json:"filters"`
 	Options            ChartOptions     `json:"options"`
 	Global             ChartBucketGroup `json:"global"`
-	ByProviderAuthFile ChartSeriesGroup `json:"byProviderAuthFile"`
+	ByProvider         ChartSeriesGroup `json:"byProvider"`
 	ByAPIKey           ChartSeriesGroup `json:"byApiKey"`
 	ByModel            ChartSeriesGroup `json:"byModel"`
 	MissingPriceModels []string         `json:"missingPriceModels"`
@@ -110,6 +118,7 @@ func ParseChartQuery(values url.Values) (ChartQuery, error) {
 	query := ChartQuery{
 		Range:       ChartRange(strings.TrimSpace(values.Get("range"))),
 		Granularity: ChartGranularity(strings.TrimSpace(values.Get("granularity"))),
+		ProviderKey: strings.TrimSpace(values.Get("provider")),
 		Provider:    strings.TrimSpace(values.Get("provider")),
 		AuthIndex:   strings.TrimSpace(values.Get("authIndex")),
 		APIKeyHash:  strings.ToLower(strings.TrimSpace(values.Get("apiKeyHash"))),
@@ -126,15 +135,12 @@ func NormalizeChartQuery(query ChartQuery) (ChartQuery, error) {
 		return ChartQuery{}, errors.New("invalid chart range")
 	}
 
-	if query.Granularity == "" {
-		query.Granularity = defaultChartGranularity(query.Range)
-	}
-	if query.Granularity != ChartGranularityHour && query.Granularity != ChartGranularityDay {
+	if query.Granularity != "" && !validChartGranularity(query.Granularity) {
 		return ChartQuery{}, errors.New("invalid chart granularity")
 	}
+	query.Granularity = defaultChartGranularity(query.Range)
 
-	query.Provider = strings.TrimSpace(query.Provider)
-	query.AuthIndex = strings.TrimSpace(query.AuthIndex)
+	query.ProviderKey, query.Provider, query.AuthIndex = normalizeChartProviderFilter(query.ProviderKey, query.Provider, query.AuthIndex)
 	query.APIKeyHash = strings.ToLower(strings.TrimSpace(query.APIKeyHash))
 	query.Model = strings.TrimSpace(query.Model)
 	if query.NowMS <= 0 {
@@ -156,19 +162,17 @@ func EmptyChartsResponse(query ChartQuery) ChartsResponse {
 		EndMS:       endMS,
 		BucketMS:    bucketMS,
 		Filters: ChartFilters{
-			Provider:   query.Provider,
-			AuthIndex:  query.AuthIndex,
+			Provider:   query.ProviderKey,
 			APIKeyHash: query.APIKeyHash,
 			Model:      query.Model,
 		},
 		Options: ChartOptions{
-			Providers: []string{},
-			AuthFiles: []ChartAuthFileOption{},
+			Providers: []ChartProviderOption{},
 			APIKeys:   []ChartAPIKeyOption{},
-			Models:    []string{},
+			Models:    []ChartModelOption{},
 		},
 		Global:             ChartBucketGroup{Buckets: BuildChartBuckets(startMS, endMS, bucketMS, query.Granularity)},
-		ByProviderAuthFile: ChartSeriesGroup{Series: []ChartSeries{}},
+		ByProvider:         ChartSeriesGroup{Series: []ChartSeries{}},
 		ByAPIKey:           ChartSeriesGroup{Series: []ChartSeries{}},
 		ByModel:            ChartSeriesGroup{Series: []ChartSeries{}},
 		MissingPriceModels: []string{},
@@ -181,7 +185,9 @@ func ChartWindow(query ChartQuery) (startMS int64, endMS int64, bucketMS int64) 
 	endMS = query.NowMS
 	startMS = endMS - durationMS
 	bucketMS = int64(time.Hour / time.Millisecond)
-	if query.Granularity == ChartGranularityDay {
+	if query.Granularity == ChartGranularity10Minute {
+		bucketMS = int64((10 * time.Minute) / time.Millisecond)
+	} else if query.Granularity == ChartGranularityDay {
 		bucketMS = int64((24 * time.Hour) / time.Millisecond)
 	}
 	return startMS, endMS, bucketMS
@@ -215,11 +221,55 @@ func validChartRange(value ChartRange) bool {
 	}
 }
 
-func defaultChartGranularity(chartRange ChartRange) ChartGranularity {
-	if chartRange == ChartRange7D {
-		return ChartGranularityDay
+func validChartGranularity(value ChartGranularity) bool {
+	switch value {
+	case ChartGranularity10Minute, ChartGranularityHour, ChartGranularityDay:
+		return true
+	default:
+		return false
 	}
-	return ChartGranularityHour
+}
+
+func defaultChartGranularity(chartRange ChartRange) ChartGranularity {
+	switch chartRange {
+	case ChartRange1H:
+		return ChartGranularity10Minute
+	case ChartRange7D:
+		return ChartGranularityDay
+	default:
+		return ChartGranularityHour
+	}
+}
+
+func normalizeChartProviderFilter(providerKey string, provider string, authIndex string) (string, string, string) {
+	providerKey = strings.TrimSpace(providerKey)
+	provider = strings.TrimSpace(provider)
+	authIndex = strings.TrimSpace(authIndex)
+
+	if strings.HasPrefix(providerKey, "auth:") {
+		authIndex = strings.TrimSpace(strings.TrimPrefix(providerKey, "auth:"))
+		if authIndex == "" {
+			return "", provider, ""
+		}
+		return "auth:" + authIndex, "", authIndex
+	}
+	if strings.HasPrefix(providerKey, "provider:") {
+		provider = strings.TrimSpace(strings.TrimPrefix(providerKey, "provider:"))
+		if provider == "" {
+			return "", "", authIndex
+		}
+		return "provider:" + provider, provider, authIndex
+	}
+	if providerKey != "" {
+		provider = providerKey
+	}
+	if authIndex != "" {
+		return "auth:" + authIndex, provider, authIndex
+	}
+	if provider != "" {
+		return "provider:" + provider, provider, ""
+	}
+	return "", "", ""
 }
 
 func chartRangeDurationMS(chartRange ChartRange) int64 {
