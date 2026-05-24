@@ -2,10 +2,17 @@ package app
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	pcconfig "github.com/HWliao/CPA-PC/internal/config"
 	log "github.com/sirupsen/logrus"
@@ -122,6 +129,121 @@ func TestConfigureEmbeddedLogOutputWritesMainLog(t *testing.T) {
 	}
 }
 
+func TestNewCLIProxyServiceAppliesInitialDebugLogLevel(t *testing.T) {
+	t.Setenv("WRITABLE_PATH", "")
+	t.Setenv("writable_path", "")
+	t.Setenv("MANAGEMENT_STATIC_PATH", "")
+
+	originalLevel := log.GetLevel()
+	t.Cleanup(func() {
+		log.SetLevel(originalLevel)
+	})
+	log.SetLevel(log.InfoLevel)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	content := []byte(`host: "127.0.0.1"
+port: 18317
+auth-dir: "./auth"
+debug: true
+logging-to-file: false
+usage:
+  enabled: false
+remote-management:
+  secret-key: "123456"
+`)
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := pcconfig.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewCLIProxyService(cfg, ServiceOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := log.GetLevel(); got != log.DebugLevel {
+		t.Fatalf("log level = %s, want %s", got, log.DebugLevel)
+	}
+}
+
+func TestCLIProxyServiceWritesRequestErrorLogWhenRequestLogDisabled(t *testing.T) {
+	t.Setenv("WRITABLE_PATH", "")
+	t.Setenv("writable_path", "")
+	t.Setenv("MANAGEMENT_STATIC_PATH", "")
+
+	logger := log.StandardLogger()
+	originalOut := logger.Out
+	originalFormatter := logger.Formatter
+	originalReportCaller := logger.ReportCaller
+	originalLevel := logger.Level
+	t.Cleanup(func() {
+		log.SetOutput(originalOut)
+		log.SetFormatter(originalFormatter)
+		log.SetReportCaller(originalReportCaller)
+		log.SetLevel(originalLevel)
+	})
+
+	dir := t.TempDir()
+	port := reserveLocalPort(t)
+	configPath := filepath.Join(dir, "config.yaml")
+	content := []byte(fmt.Sprintf(`host: "127.0.0.1"
+port: %d
+auth-dir: "./auth"
+api-keys:
+  - "test-key"
+debug: true
+logging-to-file: true
+request-log: false
+usage:
+  enabled: false
+remote-management:
+  secret-key: "123456"
+`, port))
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := pcconfig.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewCLIProxyService(cfg, ServiceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case errRun := <-errCh:
+			if errRun != nil && !errors.Is(errRun, context.Canceled) {
+				t.Fatalf("service.Run returned %v", errRun)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("service did not stop after cancellation")
+		}
+	})
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	waitForHTTPStatus(t, client, http.MethodGet, baseURL+"/healthz", "", http.StatusOK)
+
+	status := doTestRequest(t, client, http.MethodPost, baseURL+"/v1/chat/completions", `{}`)
+	if status < http.StatusBadRequest {
+		t.Fatalf("POST /v1/chat/completions status = %d, want error status", status)
+	}
+
+	waitForRequestErrorLog(t, filepath.Join(dir, "logs"))
+}
+
 func TestEnsureEmbeddedWritablePathPreservesExplicitEnv(t *testing.T) {
 	existing := filepath.Join(t.TempDir(), "writable")
 	t.Setenv("WRITABLE_PATH", existing)
@@ -133,4 +255,103 @@ func TestEnsureEmbeddedWritablePathPreservesExplicitEnv(t *testing.T) {
 	if got := os.Getenv("WRITABLE_PATH"); got != existing {
 		t.Fatalf("WRITABLE_PATH = %q, want %q", got, existing)
 	}
+}
+
+func reserveLocalPort(t *testing.T) int {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener address = %T, want *net.TCPAddr", listener.Addr())
+	}
+	return addr.Port
+}
+
+func waitForHTTPStatus(t *testing.T, client *http.Client, method string, url string, body string, want int) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	var lastErr error
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		status, err := doTestRequestMaybe(client, method, url, body)
+		if err == nil {
+			lastStatus = status
+			if status == want {
+				return
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if lastErr != nil {
+		t.Fatalf("%s %s did not return %d: last error: %v", method, url, want, lastErr)
+	}
+	t.Fatalf("%s %s status = %d, want %d", method, url, lastStatus, want)
+}
+
+func doTestRequest(t *testing.T, client *http.Client, method string, url string, body string) int {
+	t.Helper()
+
+	status, err := doTestRequestMaybe(client, method, url, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status
+}
+
+func doTestRequestMaybe(client *http.Client, method string, url string, body string) (int, error) {
+	var reader io.Reader
+	if body != "" {
+		reader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, url, reader)
+	if err != nil {
+		return 0, err
+	}
+	if reader != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, nil
+}
+
+func waitForRequestErrorLog(t *testing.T, logDir string) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, err := os.ReadDir(logDir)
+		if err == nil {
+			for _, entry := range entries {
+				name := entry.Name()
+				if entry.IsDir() || !strings.HasPrefix(name, "error-") || !strings.HasSuffix(name, ".log") {
+					continue
+				}
+				data, errRead := os.ReadFile(filepath.Join(logDir, name))
+				if errRead != nil {
+					t.Fatal(errRead)
+				}
+				if bytes.Contains(data, []byte("POST")) && bytes.Contains(data, []byte("/v1/chat/completions")) {
+					return
+				}
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatalf("no request error log found in %s", logDir)
 }

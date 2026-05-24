@@ -38,6 +38,7 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	if err != nil {
 		return nil, err
 	}
+	configureEmbeddedLogLevel(cpaCfg.Debug)
 	cleanupFns := make([]func() error, 0, 2)
 	if logCleanup != nil {
 		cleanupFns = append(cleanupFns, logCleanup)

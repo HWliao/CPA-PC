@@ -135,6 +135,14 @@ func configureEmbeddedLogOutput(cfg *pcconfig.Config) (func() error, error) {
 	}, nil
 }
 
+func configureEmbeddedLogLevel(debugEnabled bool) {
+	if debugEnabled {
+		log.SetLevel(log.DebugLevel)
+		return
+	}
+	log.SetLevel(log.InfoLevel)
+}
+
 func embeddedLogDirectory(cfg *pcconfig.Config) string {
 	if base := embeddedWritablePath(); base != "" {
 		return filepath.Join(base, "logs")
