@@ -1,6 +1,6 @@
 # Spec: CPA-PC Request Monitoring Charts
 
-Status: Spec confirmed. Implementation is on hold until the user explicitly asks to proceed.
+Status: Archived after implementation. Completed task checklist: `docs/plans/2026-05-25-cpa-pc-request-monitoring-charts-todo.md`.
 
 ## Assumptions To Confirm
 

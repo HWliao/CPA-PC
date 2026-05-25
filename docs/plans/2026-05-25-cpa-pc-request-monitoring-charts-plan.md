@@ -1,8 +1,8 @@
 # Implementation Plan: CPA-PC Request Monitoring Charts
 
-Status: Draft for human review. No feature implementation has started.
+Status: Archived after implementation. All tasks were completed before archiving.
 
-Source spec: `docs/SPEC.md`.
+Source spec: `docs/specs/2026-05-25-cpa-pc-request-monitoring-charts.md`.
 
 ## Overview
 
