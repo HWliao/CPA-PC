@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	pcconfig "github.com/HWliao/CPA-PC/internal/config"
+	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -166,6 +168,26 @@ remote-management:
 
 	if got := log.GetLevel(); got != log.DebugLevel {
 		t.Fatalf("log level = %s, want %s", got, log.DebugLevel)
+	}
+}
+
+func TestSDKStartupRegistersBuiltInTranslators(t *testing.T) {
+	raw := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hello"}]}`)
+
+	out := sdktranslator.TranslateRequest(sdktranslator.FormatOpenAI, sdktranslator.FormatCodex, "gpt-5.5", raw, false)
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("translated payload is not JSON: %v", err)
+	}
+	if store, ok := payload["store"].(bool); !ok || store {
+		t.Fatalf("store = %#v, want false", payload["store"])
+	}
+	if _, ok := payload["input"]; !ok {
+		t.Fatalf("translated payload missing Responses input: %s", out)
+	}
+	if _, ok := payload["messages"]; ok {
+		t.Fatalf("translated payload still contains Chat Completions messages: %s", out)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy"
 	cpaconfig "github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
+	_ "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator/builtin"
 	"golang.org/x/crypto/bcrypt"
 )
 

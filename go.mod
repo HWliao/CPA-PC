@@ -17,7 +17,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/redis/go-redis/v9 v9.19.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/router-for-me/CLIProxyAPI/v6 v6.10.9 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
@@ -51,7 +50,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/refraction-networking/utls v1.8.2 // indirect
-	github.com/router-for-me/CLIProxyAPI/v7 v7.1.19
+	github.com/router-for-me/CLIProxyAPI/v7 v7.1.20
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

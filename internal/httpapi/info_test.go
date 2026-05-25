@@ -22,7 +22,7 @@ func TestRegisterRoutesServesInfo(t *testing.T) {
 	RegisterRoutes(engine, Info{
 		Version:     "test-version",
 		BuildDate:   "2026-05-22T00:00:00Z",
-		CLIProxyAPI: CLIProxyAPIInfo{Version: "v7.1.19"},
+		CLIProxyAPI: CLIProxyAPIInfo{Version: "v7.1.20"},
 		CPA:         CPAInfo{Host: "", Port: 8317},
 		Usage:       UsageInfo{Enabled: true},
 	})
@@ -48,8 +48,8 @@ func TestRegisterRoutesServesInfo(t *testing.T) {
 	if got.BuildDate != "2026-05-22T00:00:00Z" {
 		t.Fatalf("BuildDate = %q, want %q", got.BuildDate, "2026-05-22T00:00:00Z")
 	}
-	if got.CLIProxyAPI.Version != "v7.1.19" {
-		t.Fatalf("CLIProxyAPI.Version = %q, want %q", got.CLIProxyAPI.Version, "v7.1.19")
+	if got.CLIProxyAPI.Version != "v7.1.20" {
+		t.Fatalf("CLIProxyAPI.Version = %q, want %q", got.CLIProxyAPI.Version, "v7.1.20")
 	}
 	if got.CPA.Port != 8317 {
 		t.Fatalf("CPA.Port = %d, want 8317", got.CPA.Port)
