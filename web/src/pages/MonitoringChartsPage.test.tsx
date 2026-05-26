@@ -207,7 +207,7 @@ describe('MonitoringChartsPage', () => {
 
     act(() => {
       selectByLabel('Account').props.onChange('Team Codex');
-      selectByLabel('API key').props.onChange('hash-1');
+      selectByLabel('Caller key').props.onChange('hash-1');
       selectByLabel('Model').props.onChange('gpt-5');
     });
     expect(latestParams()).toEqual({
@@ -232,14 +232,14 @@ describe('MonitoringChartsPage', () => {
     act(() => {
       selectByLabel('Chart dimension').props.onChange('apiKey');
     });
-    expect(hasSelectByLabel('API key')).toBe(false);
+    expect(hasSelectByLabel('Caller key')).toBe(false);
     expect(hasSelectByLabel('Account')).toBe(true);
 
     act(() => {
       selectByLabel('Chart dimension').props.onChange('model');
     });
     expect(hasSelectByLabel('Model')).toBe(false);
-    expect(hasSelectByLabel('API key')).toBe(true);
+    expect(hasSelectByLabel('Caller key')).toBe(true);
 
     renderer!.unmount();
   });

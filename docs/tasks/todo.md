@@ -44,7 +44,7 @@ Status: Draft for human review. Do not implement until approved.
   - Dependencies: Task 3
   - Files: `web/src/pages/MonitoringChartsPage.tsx`, `web/src/pages/MonitoringChartsPage.test.tsx`
 
-- [ ] Task 5: Update chart labels and remove provider copy
+- [x] Task 5: Update chart labels and remove provider copy
   - Acceptance: English chart labels use `Account` and `Caller key`; Simplified Chinese chart labels use `账号` and `调用方密钥`; Traditional Chinese and Russian chart labels are updated consistently; page tests no longer depend on stale provider/API-key labels.
   - Verify: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx` and `npm --prefix web run type-check`
   - Dependencies: Task 4
@@ -52,10 +52,10 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Frontend Chart UI
 
-- [ ] No provider chart dimension or filter appears in tests.
-- [ ] Account, caller-key, and model filters hide correctly when active.
-- [ ] Caller-key wording appears in chart controls and related chart copy.
-- [ ] Focused frontend tests and type check pass.
+- [x] No provider chart dimension or filter appears in tests.
+- [x] Account, caller-key, and model filters hide correctly when active.
+- [x] Caller-key wording appears in chart controls and related chart copy.
+- [x] Focused frontend tests and type check pass.
 
 ## Phase 4: Final Verification
 

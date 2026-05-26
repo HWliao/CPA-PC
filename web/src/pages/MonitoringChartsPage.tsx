@@ -80,7 +80,7 @@ export function MonitoringChartsPage() {
     ...(charts?.options.accounts ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
   const apiKeyOptions = [
-    { value: '', label: t('monitoring.charts_filter_all_api_keys', { defaultValue: 'All API keys' }) },
+    { value: '', label: t('monitoring.charts_filter_all_api_keys', { defaultValue: 'All caller keys' }) },
     ...(charts?.options.apiKeys ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
   const modelOptions = [
@@ -257,9 +257,9 @@ export function MonitoringChartsPage() {
           ) : null}
           {showApiKeyFilter ? (
             <div className={styles.filterField}>
-              <span>{t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}</span>
+              <span>{t('monitoring.charts_api_key_label', { defaultValue: 'Caller key' })}</span>
               <Select
-                ariaLabel={t('monitoring.charts_api_key_label', { defaultValue: 'API key' })}
+                ariaLabel={t('monitoring.charts_api_key_label', { defaultValue: 'Caller key' })}
                 value={filterState.apiKeyHash}
                 options={apiKeyOptions}
                 onChange={handleFilterChange('apiKeyHash')}
