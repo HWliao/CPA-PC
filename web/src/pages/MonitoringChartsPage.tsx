@@ -68,6 +68,7 @@ export function MonitoringChartsPage() {
       bucket.tpmCached !== 0
   );
   const providerSeries = charts?.byProvider.series ?? [];
+  const accountSeries = charts?.byAccount.series ?? [];
   const apiKeySeries = charts?.byApiKey.series ?? [];
   const modelSeries = charts?.byModel.series ?? [];
   const hasDimensionSeries = Boolean(
@@ -95,6 +96,7 @@ export function MonitoringChartsPage() {
     dimensionOptions.find((option) => option.value === filterState.dimension)?.label ??
     t('monitoring.charts_dimension_global', { defaultValue: 'Global total' });
   const activeSeries = resolveActiveDimensionSeries(filterState.dimension, {
+    account: accountSeries,
     provider: providerSeries,
     apiKey: apiKeySeries,
     model: modelSeries,

@@ -52,6 +52,7 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
   bucketMs: 600000,
   filters: {},
   options: {
+    accounts: [{ value: 'Team Codex', label: 'Team Codex', account: 'Team Codex', authIndex: '2' }],
     providers: [{ value: 'auth:2', label: 'Team Codex', provider: 'openai', authIndex: '2' }],
     apiKeys: [{ value: 'hash-1', apiKeyHash: 'hash-1', label: 'Build key' }],
     models: [{ value: 'gpt-5', model: 'gpt-5', label: 'GPT-5' }],
@@ -72,6 +73,7 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
       },
     ],
   },
+  byAccount: { series: [] },
   byProvider: { series: [] },
   byApiKey: { series: [] },
   byModel: { series: [] },
@@ -129,7 +131,7 @@ describe('MonitoringChartsPage', () => {
     vi.mocked(useUsageCharts).mockReturnValue(
       createHookState({
         charts: createChartsResponse({
-          options: { providers: [], apiKeys: [], models: [] },
+          options: { accounts: [], providers: [], apiKeys: [], models: [] },
           global: {
             buckets: [
               {
@@ -213,7 +215,6 @@ describe('MonitoringChartsPage', () => {
     expect(latestParams()).toEqual({
       range: '7d',
       granularity: 'day',
-      provider: 'auth:2',
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });

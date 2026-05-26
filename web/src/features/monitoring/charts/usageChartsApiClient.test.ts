@@ -16,8 +16,9 @@ const chartResponse: UsageChartsResponse = {
   endMs: 2,
   bucketMs: 3,
   filters: {},
-  options: { providers: [], apiKeys: [], models: [] },
+  options: { accounts: [], providers: [], apiKeys: [], models: [] },
   global: { buckets: [] },
+  byAccount: { series: [] },
   byProvider: { series: [] },
   byApiKey: { series: [] },
   byModel: { series: [] },
@@ -37,7 +38,7 @@ describe('usageServiceApi.getUsageCharts', () => {
       {
         range: '1h',
         granularity: 'hour',
-        provider: 'auth:auth-a',
+        account: 'Team Codex',
         apiKeyHash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         model: 'gpt-test',
       },
@@ -52,7 +53,7 @@ describe('usageServiceApi.getUsageCharts', () => {
         params: {
           range: '1h',
           granularity: 'hour',
-          provider: 'auth:auth-a',
+          account: 'Team Codex',
           apiKeyHash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           model: 'gpt-test',
         },
@@ -63,7 +64,7 @@ describe('usageServiceApi.getUsageCharts', () => {
   it('omits empty optional params', async () => {
     await usageServiceApi.getUsageCharts(
       'http://127.0.0.1:8317',
-      { range: '1h', provider: '', model: undefined },
+      { range: '1h', account: '', model: undefined },
       'manage-secret'
     );
 

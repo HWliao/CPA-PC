@@ -1,10 +1,11 @@
 import type { UsageChartsGranularity, UsageChartsQueryParams, UsageChartsRange } from '@/services/api/usageService';
 
-export type UsageChartsDimension = 'global' | 'provider' | 'apiKey' | 'model';
+export type UsageChartsDimension = 'global' | 'account' | 'provider' | 'apiKey' | 'model';
 
 export type UsageChartsFilterState = {
   range: UsageChartsRange;
   dimension: UsageChartsDimension;
+  account: string;
   provider: string;
   apiKeyHash: string;
   model: string;
@@ -32,19 +33,20 @@ export const USAGE_CHART_GRANULARITY_OPTIONS: Array<{
 ];
 
 export const USAGE_CHART_DIMENSION_OPTIONS: Array<{
-  value: UsageChartsDimension;
+  value: Exclude<UsageChartsDimension, 'provider'>;
   labelKey: string;
   defaultLabel: string;
 }> = [
   { value: 'global', labelKey: 'monitoring.charts_dimension_global', defaultLabel: 'Global total' },
-  { value: 'provider', labelKey: 'monitoring.charts_dimension_provider', defaultLabel: 'Provider' },
-  { value: 'apiKey', labelKey: 'monitoring.charts_dimension_api_key', defaultLabel: 'API key' },
+  { value: 'account', labelKey: 'monitoring.charts_dimension_account', defaultLabel: 'Account' },
+  { value: 'apiKey', labelKey: 'monitoring.charts_dimension_api_key', defaultLabel: 'Caller key' },
   { value: 'model', labelKey: 'monitoring.charts_dimension_model', defaultLabel: 'Model' },
 ];
 
 export const createDefaultUsageChartsFilterState = (): UsageChartsFilterState => ({
   range: '1h',
   dimension: 'global',
+  account: '',
   provider: '',
   apiKeyHash: '',
   model: '',
@@ -80,8 +82,8 @@ export function buildUsageChartsQueryParams(state: UsageChartsFilterState): Usag
     granularity: resolveDefaultUsageChartsGranularity(state.range),
   };
 
-  if (!shouldDisableUsageChartsFilter('provider', state.dimension)) {
-    appendNonEmptyParam(params, 'provider', state.provider);
+  if (!shouldDisableUsageChartsFilter('account', state.dimension)) {
+    appendNonEmptyParam(params, 'account', state.account);
   }
   if (!shouldDisableUsageChartsFilter('apiKey', state.dimension)) {
     appendNonEmptyParam(params, 'apiKeyHash', state.apiKeyHash);

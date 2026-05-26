@@ -32,7 +32,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 3: Frontend Query And Rendering
 
-- [ ] Task 3: Update frontend chart types and filter query path
+- [x] Task 3: Update frontend chart types and filter query path
   - Acceptance: frontend chart query params use `account`; response types use `options.accounts` and `byAccount`; dimension type is `global | account | apiKey | model`; filter tests cover account inclusion/omission.
   - Verify: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts`
   - Dependencies: Task 1
