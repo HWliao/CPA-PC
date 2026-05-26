@@ -27,6 +27,7 @@ const (
 type ChartQuery struct {
 	Range       ChartRange
 	Granularity ChartGranularity
+	Account     string
 	ProviderKey string
 	Provider    string
 	AuthIndex   string
@@ -55,7 +56,8 @@ type ChartBucketGroup struct {
 type ChartSeries struct {
 	Key        string              `json:"key"`
 	Label      string              `json:"label"`
-	Provider   string              `json:"provider,omitempty"`
+	Account    string              `json:"account,omitempty"`
+	Provider   string              `json:"-"`
 	AuthIndex  string              `json:"authIndex,omitempty"`
 	APIKeyHash string              `json:"apiKeyHash,omitempty"`
 	Model      string              `json:"model,omitempty"`
@@ -64,9 +66,17 @@ type ChartSeries struct {
 }
 
 type ChartFilters struct {
-	Provider   string `json:"provider,omitempty"`
+	Account    string `json:"account,omitempty"`
+	Provider   string `json:"-"`
 	APIKeyHash string `json:"apiKeyHash,omitempty"`
 	Model      string `json:"model,omitempty"`
+}
+
+type ChartAccountOption struct {
+	Value     string `json:"value"`
+	Label     string `json:"label"`
+	Account   string `json:"account,omitempty"`
+	AuthIndex string `json:"authIndex,omitempty"`
 }
 
 type ChartProviderOption struct {
@@ -89,7 +99,8 @@ type ChartModelOption struct {
 }
 
 type ChartOptions struct {
-	Providers []ChartProviderOption `json:"providers"`
+	Accounts  []ChartAccountOption  `json:"accounts"`
+	Providers []ChartProviderOption `json:"-"`
 	APIKeys   []ChartAPIKeyOption   `json:"apiKeys"`
 	Models    []ChartModelOption    `json:"models"`
 }
@@ -107,7 +118,8 @@ type ChartsResponse struct {
 	Filters            ChartFilters     `json:"filters"`
 	Options            ChartOptions     `json:"options"`
 	Global             ChartBucketGroup `json:"global"`
-	ByProvider         ChartSeriesGroup `json:"byProvider"`
+	ByAccount          ChartSeriesGroup `json:"byAccount"`
+	ByProvider         ChartSeriesGroup `json:"-"`
 	ByAPIKey           ChartSeriesGroup `json:"byApiKey"`
 	ByModel            ChartSeriesGroup `json:"byModel"`
 	MissingPriceModels []string         `json:"missingPriceModels"`
@@ -118,9 +130,7 @@ func ParseChartQuery(values url.Values) (ChartQuery, error) {
 	query := ChartQuery{
 		Range:       ChartRange(strings.TrimSpace(values.Get("range"))),
 		Granularity: ChartGranularity(strings.TrimSpace(values.Get("granularity"))),
-		ProviderKey: strings.TrimSpace(values.Get("provider")),
-		Provider:    strings.TrimSpace(values.Get("provider")),
-		AuthIndex:   strings.TrimSpace(values.Get("authIndex")),
+		Account:     strings.TrimSpace(values.Get("account")),
 		APIKeyHash:  strings.ToLower(strings.TrimSpace(values.Get("apiKeyHash"))),
 		Model:       strings.TrimSpace(values.Get("model")),
 	}
@@ -140,6 +150,7 @@ func NormalizeChartQuery(query ChartQuery) (ChartQuery, error) {
 	}
 	query.Granularity = defaultChartGranularity(query.Range)
 
+	query.Account = strings.TrimSpace(query.Account)
 	query.ProviderKey, query.Provider, query.AuthIndex = normalizeChartProviderFilter(query.ProviderKey, query.Provider, query.AuthIndex)
 	query.APIKeyHash = strings.ToLower(strings.TrimSpace(query.APIKeyHash))
 	query.Model = strings.TrimSpace(query.Model)
@@ -162,16 +173,19 @@ func EmptyChartsResponse(query ChartQuery) ChartsResponse {
 		EndMS:       endMS,
 		BucketMS:    bucketMS,
 		Filters: ChartFilters{
+			Account:    query.Account,
 			Provider:   query.ProviderKey,
 			APIKeyHash: query.APIKeyHash,
 			Model:      query.Model,
 		},
 		Options: ChartOptions{
+			Accounts:  []ChartAccountOption{},
 			Providers: []ChartProviderOption{},
 			APIKeys:   []ChartAPIKeyOption{},
 			Models:    []ChartModelOption{},
 		},
 		Global:             ChartBucketGroup{Buckets: BuildChartBuckets(startMS, endMS, bucketMS, query.Granularity)},
+		ByAccount:          ChartSeriesGroup{Series: []ChartSeries{}},
 		ByProvider:         ChartSeriesGroup{Series: []ChartSeries{}},
 		ByAPIKey:           ChartSeriesGroup{Series: []ChartSeries{}},
 		ByModel:            ChartSeriesGroup{Series: []ChartSeries{}},

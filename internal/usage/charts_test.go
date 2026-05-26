@@ -1,6 +1,9 @@
 package usage
 
 import (
+	"encoding/json"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,5 +69,51 @@ func TestNormalizeChartQueryLinksGranularityToRange(t *testing.T) {
 				t.Fatalf("bucket count = %d, want %d", len(buckets), tc.bucketCount)
 			}
 		})
+	}
+}
+
+func TestParseChartQueryUsesAccountFilter(t *testing.T) {
+	query, err := ParseChartQuery(url.Values{
+		"account":    {" Team Codex "},
+		"apiKeyHash": {" ABCDEF "},
+		"model":      {" gpt-test "},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if query.Account != "Team Codex" {
+		t.Fatalf("account = %q, want %q", query.Account, "Team Codex")
+	}
+	if query.APIKeyHash != "abcdef" {
+		t.Fatalf("api key hash = %q, want %q", query.APIKeyHash, "abcdef")
+	}
+	if query.Model != "gpt-test" {
+		t.Fatalf("model = %q, want %q", query.Model, "gpt-test")
+	}
+}
+
+func TestEmptyChartsResponseUsesAccountContract(t *testing.T) {
+	response := EmptyChartsResponse(ChartQuery{Account: "Team Codex"})
+
+	if response.Filters.Account != "Team Codex" {
+		t.Fatalf("filters.account = %q, want %q", response.Filters.Account, "Team Codex")
+	}
+	if len(response.Options.Accounts) != 0 {
+		t.Fatalf("accounts options = %#v, want empty", response.Options.Accounts)
+	}
+	if len(response.ByAccount.Series) != 0 {
+		t.Fatalf("account series = %#v, want empty", response.ByAccount.Series)
+	}
+
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonText := string(encoded)
+	for _, staleField := range []string{"byProvider", "providers", "provider"} {
+		if strings.Contains(jsonText, staleField) {
+			t.Fatalf("response JSON contains stale provider field %q: %s", staleField, jsonText)
+		}
 	}
 }

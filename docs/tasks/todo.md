@@ -4,7 +4,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 1: Backend Contract
 
-- [ ] Task 1: Switch chart API contract to account
+- [x] Task 1: Switch chart API contract to account
   - Acceptance: `account` query parsing works; chart response has `filters.account`, `options.accounts`, and `byAccount`; empty responses include empty account options/series; route tests pass account through to store.
   - Verify: `go test ./internal/usage ./internal/httpapi`
   - Dependencies: None
@@ -12,9 +12,9 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Backend Contract
 
-- [ ] Endpoint path remains `/v0/management/usage/charts`.
-- [ ] Empty store response remains valid.
-- [ ] Focused backend contract tests pass.
+- [x] Endpoint path remains `/v0/management/usage/charts`.
+- [x] Empty store response remains valid.
+- [x] Focused backend contract tests pass.
 
 ## Phase 2: Backend Data Path
 
