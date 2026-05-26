@@ -18,7 +18,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 2: Backend Data Path
 
-- [ ] Task 2: Aggregate account series from usage events
+- [x] Task 2: Aggregate account series from usage events
   - Acceptance: store returns account options and `byAccount.series`; account filter constrains global/account/caller-key/model series; caller-key/model behavior, cost, TPM, and missing-price behavior are preserved.
   - Verify: `go test ./internal/store` and `go test ./internal/usage ./internal/store ./internal/httpapi`
   - Dependencies: Task 1
@@ -26,9 +26,9 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Backend Data Path
 
-- [ ] Account series tests cover account snapshot and auth label/file snapshot fallback.
-- [ ] Provider series/options expectations are removed from chart store tests.
-- [ ] Backend focused tests pass.
+- [x] Account series tests cover account snapshot and auth label/file snapshot fallback.
+- [x] Provider series/options expectations are removed from chart store tests.
+- [x] Backend focused tests pass.
 
 ## Phase 3: Frontend Query And Rendering
 

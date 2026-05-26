@@ -143,6 +143,7 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 			Provider:          "openai",
 			Model:             "gpt-priced",
 			AuthIndex:         "auth-a",
+			AccountSnapshot:   "alice@example.com",
 			AuthLabelSnapshot: "Alice",
 			APIKeyHash:        hashA,
 			InputTokens:       100,
@@ -180,11 +181,11 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := providerOptionLabels(charts.Options.Providers); !reflect.DeepEqual(got, []string{"Alice", "Bob"}) {
-		t.Fatalf("provider labels = %#v", got)
+	if got := accountOptionLabels(charts.Options.Accounts); !reflect.DeepEqual(got, []string{"Bob", "alice@example.com"}) {
+		t.Fatalf("account labels = %#v", got)
 	}
-	if got := providerOptionValues(charts.Options.Providers); !reflect.DeepEqual(got, []string{"auth:auth-a", "auth:auth-b"}) {
-		t.Fatalf("provider values = %#v", got)
+	if got := accountOptionValues(charts.Options.Accounts); !reflect.DeepEqual(got, []string{"Bob", "alice@example.com"}) {
+		t.Fatalf("account values = %#v", got)
 	}
 	if got := apiKeyOptionLabels(charts.Options.APIKeys); !reflect.DeepEqual(got, []string{"Team A", "sha256:bbbbbbbbbbbb"}) {
 		t.Fatalf("api key labels = %#v", got)
@@ -192,11 +193,11 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 	if got := modelOptionLabels(charts.Options.Models); !reflect.DeepEqual(got, []string{"gpt-priced", "missing-model"}) {
 		t.Fatalf("model labels = %#v", got)
 	}
-	if len(charts.ByProvider.Series) != 2 || len(charts.ByAPIKey.Series) != 2 || len(charts.ByModel.Series) != 2 {
-		t.Fatalf("series counts provider=%d api=%d model=%d", len(charts.ByProvider.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
+	if len(charts.ByAccount.Series) != 2 || len(charts.ByAPIKey.Series) != 2 || len(charts.ByModel.Series) != 2 {
+		t.Fatalf("series counts account=%d api=%d model=%d", len(charts.ByAccount.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
 	}
-	if got := seriesLabels(charts.ByProvider.Series); !reflect.DeepEqual(got, []string{"Alice", "Bob"}) {
-		t.Fatalf("provider series labels = %#v", got)
+	if got := seriesLabels(charts.ByAccount.Series); !reflect.DeepEqual(got, []string{"Bob", "alice@example.com"}) {
+		t.Fatalf("account series labels = %#v", got)
 	}
 	if got := seriesLabels(charts.ByAPIKey.Series); !reflect.DeepEqual(got, []string{"Team A", "sha256:bbbbbbbbbbbb"}) {
 		t.Fatalf("api series labels = %#v", got)
@@ -242,8 +243,8 @@ func TestUsageChartsSkipsAPIKeySeriesWithoutHash(t *testing.T) {
 	if len(charts.Options.APIKeys) != 0 || len(charts.ByAPIKey.Series) != 0 {
 		t.Fatalf("api key dimension should be empty, options=%#v series=%#v", charts.Options.APIKeys, charts.ByAPIKey.Series)
 	}
-	if len(charts.ByProvider.Series) != 1 || len(charts.ByModel.Series) != 1 {
-		t.Fatalf("non-api-key dimensions should remain populated, provider=%d model=%d", len(charts.ByProvider.Series), len(charts.ByModel.Series))
+	if len(charts.ByAccount.Series) != 1 || len(charts.ByModel.Series) != 1 {
+		t.Fatalf("non-api-key dimensions should remain populated, account=%d model=%d", len(charts.ByAccount.Series), len(charts.ByModel.Series))
 	}
 }
 
@@ -259,30 +260,32 @@ func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 	const hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	_, err = db.InsertEvents(context.Background(), []usage.Event{
 		{
-			EventHash:    "selected-event",
-			TimestampMS:  now - 20*60*1000,
-			Timestamp:    time.UnixMilli(now - 20*60*1000).UTC().Format(time.RFC3339Nano),
-			Provider:     "openai",
-			Model:        "gpt-selected",
-			AuthIndex:    "auth-a",
-			APIKeyHash:   hashA,
-			InputTokens:  100,
-			OutputTokens: 50,
-			CachedTokens: 10,
-			CreatedAtMS:  now - 20*60*1000,
+			EventHash:       "selected-event",
+			TimestampMS:     now - 20*60*1000,
+			Timestamp:       time.UnixMilli(now - 20*60*1000).UTC().Format(time.RFC3339Nano),
+			Provider:        "openai",
+			Model:           "gpt-selected",
+			AuthIndex:       "auth-a",
+			AccountSnapshot: "selected@example.com",
+			APIKeyHash:      hashA,
+			InputTokens:     100,
+			OutputTokens:    50,
+			CachedTokens:    10,
+			CreatedAtMS:     now - 20*60*1000,
 		},
 		{
-			EventHash:    "other-event",
-			TimestampMS:  now - 10*60*1000,
-			Timestamp:    time.UnixMilli(now - 10*60*1000).UTC().Format(time.RFC3339Nano),
-			Provider:     "gemini",
-			Model:        "gpt-other",
-			AuthIndex:    "auth-b",
-			APIKeyHash:   hashB,
-			InputTokens:  200,
-			OutputTokens: 75,
-			CachedTokens: 20,
-			CreatedAtMS:  now - 10*60*1000,
+			EventHash:       "other-event",
+			TimestampMS:     now - 10*60*1000,
+			Timestamp:       time.UnixMilli(now - 10*60*1000).UTC().Format(time.RFC3339Nano),
+			Provider:        "gemini",
+			Model:           "gpt-other",
+			AuthIndex:       "auth-b",
+			AccountSnapshot: "other@example.com",
+			APIKeyHash:      hashB,
+			InputTokens:     200,
+			OutputTokens:    75,
+			CachedTokens:    20,
+			CreatedAtMS:     now - 10*60*1000,
 		},
 	})
 	if err != nil {
@@ -292,7 +295,7 @@ func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
 		Range:       usage.ChartRange1H,
 		Granularity: usage.ChartGranularityHour,
-		ProviderKey: "auth:auth-a",
+		Account:     "selected@example.com",
 		APIKeyHash:  hashA,
 		Model:       "gpt-selected",
 		NowMS:       now,
@@ -305,10 +308,10 @@ func TestUsageChartsAppliesCombinedFilters(t *testing.T) {
 	if bucket.InputTokens != 100 || bucket.OutputTokens != 50 || bucket.CachedTokens != 10 {
 		t.Fatalf("filtered global bucket = %#v", bucket)
 	}
-	if len(charts.ByProvider.Series) != 1 || len(charts.ByAPIKey.Series) != 1 || len(charts.ByModel.Series) != 1 {
-		t.Fatalf("filtered series counts provider=%d api=%d model=%d", len(charts.ByProvider.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
+	if len(charts.ByAccount.Series) != 1 || len(charts.ByAPIKey.Series) != 1 || len(charts.ByModel.Series) != 1 {
+		t.Fatalf("filtered series counts account=%d api=%d model=%d", len(charts.ByAccount.Series), len(charts.ByAPIKey.Series), len(charts.ByModel.Series))
 	}
-	if charts.Filters.Provider != "auth:auth-a" || charts.Filters.APIKeyHash != hashA || charts.Filters.Model != "gpt-selected" {
+	if charts.Filters.Account != "selected@example.com" || charts.Filters.APIKeyHash != hashA || charts.Filters.Model != "gpt-selected" {
 		t.Fatalf("filters = %#v", charts.Filters)
 	}
 }
@@ -331,7 +334,7 @@ func assertFloatNear(t *testing.T, got, want float64) {
 	}
 }
 
-func providerOptionLabels(options []usage.ChartProviderOption) []string {
+func accountOptionLabels(options []usage.ChartAccountOption) []string {
 	labels := make([]string, 0, len(options))
 	for _, option := range options {
 		labels = append(labels, option.Label)
@@ -340,7 +343,7 @@ func providerOptionLabels(options []usage.ChartProviderOption) []string {
 	return labels
 }
 
-func providerOptionValues(options []usage.ChartProviderOption) []string {
+func accountOptionValues(options []usage.ChartAccountOption) []string {
 	values := make([]string, 0, len(options))
 	for _, option := range options {
 		values = append(values, option.Value)
