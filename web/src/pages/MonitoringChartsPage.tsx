@@ -67,18 +67,17 @@ export function MonitoringChartsPage() {
       bucket.tpmOutput !== 0 ||
       bucket.tpmCached !== 0
   );
-  const providerSeries = charts?.byProvider.series ?? [];
   const accountSeries = charts?.byAccount.series ?? [];
   const apiKeySeries = charts?.byApiKey.series ?? [];
   const modelSeries = charts?.byModel.series ?? [];
   const hasDimensionSeries = Boolean(
-    charts && (providerSeries.length > 0 || apiKeySeries.length > 0 || modelSeries.length > 0)
+    charts && (accountSeries.length > 0 || apiKeySeries.length > 0 || modelSeries.length > 0)
   );
   const hasData = Boolean(charts && (hasGlobalUsageValues || hasDimensionSeries));
   const missingPriceModels = charts?.missingPriceModels ?? [];
-  const providerOptions = [
-    { value: '', label: t('monitoring.charts_filter_all_providers', { defaultValue: 'All providers' }) },
-    ...(charts?.options.providers ?? []).map((item) => ({ value: item.value, label: item.label })),
+  const accountOptions = [
+    { value: '', label: t('monitoring.charts_filter_all_accounts', { defaultValue: 'All accounts' }) },
+    ...(charts?.options.accounts ?? []).map((item) => ({ value: item.value, label: item.label })),
   ];
   const apiKeyOptions = [
     { value: '', label: t('monitoring.charts_filter_all_api_keys', { defaultValue: 'All API keys' }) },
@@ -97,12 +96,11 @@ export function MonitoringChartsPage() {
     t('monitoring.charts_dimension_global', { defaultValue: 'Global total' });
   const activeSeries = resolveActiveDimensionSeries(filterState.dimension, {
     account: accountSeries,
-    provider: providerSeries,
     apiKey: apiKeySeries,
     model: modelSeries,
   });
   const hasActiveChartData = filterState.dimension === 'global' ? hasGlobalUsageValues : activeSeries.length > 0;
-  const showProviderFilter = !shouldDisableUsageChartsFilter('provider', filterState.dimension);
+  const showAccountFilter = !shouldDisableUsageChartsFilter('account', filterState.dimension);
   const showApiKeyFilter = !shouldDisableUsageChartsFilter('apiKey', filterState.dimension);
   const showModelFilter = !shouldDisableUsageChartsFilter('model', filterState.dimension);
   const tokenUsageChart: ChartDefinition = {
@@ -161,7 +159,7 @@ export function MonitoringChartsPage() {
     const dimension = value as UsageChartsDimension;
     setFilterState((current) => clearFilterForDimension({ ...current, dimension }, dimension));
   };
-  const handleFilterChange = (key: keyof Pick<UsageChartsFilterState, 'provider' | 'apiKeyHash' | 'model'>) =>
+  const handleFilterChange = (key: keyof Pick<UsageChartsFilterState, 'account' | 'apiKeyHash' | 'model'>) =>
     (value: string) => {
       setFilterState((current) => ({ ...current, [key]: value }));
     };
@@ -246,14 +244,14 @@ export function MonitoringChartsPage() {
               onChange={handleDimensionChange}
             />
           </div>
-          {showProviderFilter ? (
+          {showAccountFilter ? (
             <div className={styles.filterField}>
-              <span>{t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}</span>
+              <span>{t('monitoring.charts_account_label', { defaultValue: 'Account' })}</span>
               <Select
-                ariaLabel={t('monitoring.charts_provider_label', { defaultValue: 'Provider' })}
-                value={filterState.provider}
-                options={providerOptions}
-                onChange={handleFilterChange('provider')}
+                ariaLabel={t('monitoring.charts_account_label', { defaultValue: 'Account' })}
+                value={filterState.account}
+                options={accountOptions}
+                onChange={handleFilterChange('account')}
               />
             </div>
           ) : null}
@@ -518,7 +516,7 @@ function clearFilterForDimension(
 ): UsageChartsFilterState {
   return {
     ...state,
-    provider: dimension === 'provider' ? '' : state.provider,
+    account: dimension === 'account' ? '' : state.account,
     apiKeyHash: dimension === 'apiKey' ? '' : state.apiKeyHash,
     model: dimension === 'model' ? '' : state.model,
   };

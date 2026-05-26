@@ -40,7 +40,6 @@ describe('usage chart filters', () => {
         range: '7d',
         dimension: 'global',
         account: ' Team Codex ',
-        provider: '',
         apiKeyHash: 'hash-1',
         model: 'gpt-5',
       })
@@ -59,7 +58,6 @@ describe('usage chart filters', () => {
         range: '24h',
         dimension: 'account',
         account: 'Team Codex',
-        provider: '',
         apiKeyHash: 'hash-1',
         model: 'gpt-5',
       })

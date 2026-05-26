@@ -1,12 +1,11 @@
 import type { UsageChartsGranularity, UsageChartsQueryParams, UsageChartsRange } from '@/services/api/usageService';
 
-export type UsageChartsDimension = 'global' | 'account' | 'provider' | 'apiKey' | 'model';
+export type UsageChartsDimension = 'global' | 'account' | 'apiKey' | 'model';
 
 export type UsageChartsFilterState = {
   range: UsageChartsRange;
   dimension: UsageChartsDimension;
   account: string;
-  provider: string;
   apiKeyHash: string;
   model: string;
 };
@@ -33,7 +32,7 @@ export const USAGE_CHART_GRANULARITY_OPTIONS: Array<{
 ];
 
 export const USAGE_CHART_DIMENSION_OPTIONS: Array<{
-  value: Exclude<UsageChartsDimension, 'provider'>;
+  value: UsageChartsDimension;
   labelKey: string;
   defaultLabel: string;
 }> = [
@@ -47,7 +46,6 @@ export const createDefaultUsageChartsFilterState = (): UsageChartsFilterState =>
   range: '1h',
   dimension: 'global',
   account: '',
-  provider: '',
   apiKeyHash: '',
   model: '',
 });

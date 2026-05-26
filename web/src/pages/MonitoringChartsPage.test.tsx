@@ -53,7 +53,6 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
   filters: {},
   options: {
     accounts: [{ value: 'Team Codex', label: 'Team Codex', account: 'Team Codex', authIndex: '2' }],
-    providers: [{ value: 'auth:2', label: 'Team Codex', provider: 'openai', authIndex: '2' }],
     apiKeys: [{ value: 'hash-1', apiKeyHash: 'hash-1', label: 'Build key' }],
     models: [{ value: 'gpt-5', model: 'gpt-5', label: 'GPT-5' }],
   },
@@ -74,7 +73,6 @@ const createChartsResponse = (overrides: Partial<UsageChartsResponse> = {}): Usa
     ],
   },
   byAccount: { series: [] },
-  byProvider: { series: [] },
   byApiKey: { series: [] },
   byModel: { series: [] },
   missingPriceModels: [],
@@ -131,7 +129,7 @@ describe('MonitoringChartsPage', () => {
     vi.mocked(useUsageCharts).mockReturnValue(
       createHookState({
         charts: createChartsResponse({
-          options: { accounts: [], providers: [], apiKeys: [], models: [] },
+          options: { accounts: [], apiKeys: [], models: [] },
           global: {
             buckets: [
               {
@@ -208,19 +206,20 @@ describe('MonitoringChartsPage', () => {
     expect(latestParams()).toEqual({ range: '7d', granularity: 'day' });
 
     act(() => {
-      selectByLabel('Provider').props.onChange('auth:2');
+      selectByLabel('Account').props.onChange('Team Codex');
       selectByLabel('API key').props.onChange('hash-1');
       selectByLabel('Model').props.onChange('gpt-5');
     });
     expect(latestParams()).toEqual({
       range: '7d',
       granularity: 'day',
+      account: 'Team Codex',
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });
 
     act(() => {
-      selectByLabel('Chart dimension').props.onChange('provider');
+      selectByLabel('Chart dimension').props.onChange('account');
     });
     expect(latestParams()).toEqual({
       range: '7d',
@@ -228,13 +227,13 @@ describe('MonitoringChartsPage', () => {
       apiKeyHash: 'hash-1',
       model: 'gpt-5',
     });
-    expect(hasSelectByLabel('Provider')).toBe(false);
+    expect(hasSelectByLabel('Account')).toBe(false);
 
     act(() => {
       selectByLabel('Chart dimension').props.onChange('apiKey');
     });
     expect(hasSelectByLabel('API key')).toBe(false);
-    expect(hasSelectByLabel('Provider')).toBe(true);
+    expect(hasSelectByLabel('Account')).toBe(true);
 
     act(() => {
       selectByLabel('Chart dimension').props.onChange('model');
@@ -282,7 +281,7 @@ describe('MonitoringChartsPage', () => {
     vi.mocked(useUsageCharts).mockImplementation(() =>
       createHookState({
         charts: createChartsResponse({
-          byProvider: { series: [createSeries('auth:2', 'Team Codex')] },
+          byAccount: { series: [createSeries('account', 'Team Codex')] },
           byApiKey: { series: [createSeries('api-key', 'Build key')] },
           byModel: { series: [createSeries('model', 'GPT-5')] },
         }),
@@ -299,7 +298,7 @@ describe('MonitoringChartsPage', () => {
     if (!dimensionSelect) throw new Error('Dimension select not found');
 
     act(() => {
-      dimensionSelect.props.onChange('provider');
+      dimensionSelect.props.onChange('account');
     });
 
     const chartOptions = renderer!.root.findAllByType(EChartPanel).map((node) => node.props.option);

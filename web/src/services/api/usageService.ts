@@ -156,7 +156,6 @@ export interface UsageChartsQueryParams {
   range?: UsageChartsRange;
   granularity?: UsageChartsGranularity;
   account?: string;
-  provider?: string;
   apiKeyHash?: string;
   model?: string;
 }
@@ -178,7 +177,6 @@ export interface UsageChartSeries {
   key: string;
   label: string;
   account?: string;
-  provider?: string;
   authIndex?: string;
   apiKeyHash?: string;
   model?: string;
@@ -194,19 +192,16 @@ export interface UsageChartsResponse {
   bucketMs: number;
   filters: {
     account?: string;
-    provider?: string;
     apiKeyHash?: string;
     model?: string;
   };
   options: {
     accounts: Array<{ value: string; label: string; account?: string; authIndex?: string }>;
-    providers: Array<{ value: string; label: string; provider?: string; authIndex?: string }>;
     apiKeys: Array<{ value: string; apiKeyHash: string; label: string }>;
     models: Array<{ value: string; model: string; label: string }>;
   };
   global: { buckets: UsageChartMetricBucket[] };
   byAccount: { series: UsageChartSeries[] };
-  byProvider: { series: UsageChartSeries[] };
   byApiKey: { series: UsageChartSeries[] };
   byModel: { series: UsageChartSeries[] };
   missingPriceModels: string[];

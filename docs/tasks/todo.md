@@ -38,7 +38,7 @@ Status: Draft for human review. Do not implement until approved.
   - Dependencies: Task 1
   - Files: `web/src/services/api/usageService.ts`, `web/src/features/monitoring/charts/filters.ts`, `web/src/features/monitoring/charts/filters.test.ts`
 
-- [ ] Task 4: Render account dimension and account filter in chart page
+- [x] Task 4: Render account dimension and account filter in chart page
   - Acceptance: provider select is gone; account select appears except when account is active dimension; account dimension renders account series; caller-key/model dimensions still work.
   - Verify: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`
   - Dependencies: Task 3
