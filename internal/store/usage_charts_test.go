@@ -207,6 +207,69 @@ func TestUsageChartsBuildsDimensionSeriesOptionsAndMissingPrices(t *testing.T) {
 	}
 }
 
+func TestUsageChartsUsesAuthLabelForUUIDAccountSnapshotDisplay(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 5, 22, 12, 30, 0, 0, time.UTC).UnixMilli()
+	const accountID = "550e8400-e29b-41d4-a716-446655440000"
+	_, err = db.InsertEvents(context.Background(), []usage.Event{{
+		EventHash:         "uuid-account-event",
+		TimestampMS:       now - 20*60*1000,
+		Timestamp:         time.UnixMilli(now - 20*60*1000).UTC().Format(time.RFC3339Nano),
+		Provider:          "openai",
+		Model:             "gpt-test",
+		AuthIndex:         "auth-a",
+		AccountSnapshot:   accountID,
+		AuthLabelSnapshot: "Team Codex",
+		InputTokens:       100,
+		OutputTokens:      50,
+		CachedTokens:      10,
+		CreatedAtMS:       now - 20*60*1000,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		NowMS:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(charts.Options.Accounts) != 1 {
+		t.Fatalf("account options = %#v, want 1", charts.Options.Accounts)
+	}
+	if got := charts.Options.Accounts[0]; got.Value != accountID || got.Label != "Team Codex" || got.Account != accountID {
+		t.Fatalf("account option = %#v", got)
+	}
+	if len(charts.ByAccount.Series) != 1 {
+		t.Fatalf("account series = %#v, want 1", charts.ByAccount.Series)
+	}
+	if got := charts.ByAccount.Series[0]; got.Key != accountID || got.Label != "Team Codex" || got.Account != accountID {
+		t.Fatalf("account series = %#v", got)
+	}
+
+	filtered, err := db.UsageCharts(context.Background(), usage.ChartQuery{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		Account:     accountID,
+		NowMS:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered.ByAccount.Series) != 1 || filtered.ByAccount.Series[0].Label != "Team Codex" {
+		t.Fatalf("filtered account series = %#v", filtered.ByAccount.Series)
+	}
+}
+
 func TestUsageChartsSkipsAPIKeySeriesWithoutHash(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
 	if err != nil {

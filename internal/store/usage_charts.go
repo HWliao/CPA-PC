@@ -282,10 +282,23 @@ func chartAccountOption(authIndex string, authLabel string, authFile string, acc
 	}
 	return usage.ChartAccountOption{
 		Value:     value,
-		Label:     value,
+		Label:     chartAccountLabel(account, authLabel, authFile, authIndex),
 		Account:   account,
 		AuthIndex: authIndex,
 	}
+}
+
+func chartAccountLabel(account string, authLabel string, authFile string, authIndex string) string {
+	account = strings.TrimSpace(account)
+	if account != "" && !looksLikeUUID(account) {
+		return account
+	}
+	for _, candidate := range []string{authLabel, authFile, account, authIndex} {
+		if strings.TrimSpace(candidate) != "" {
+			return strings.TrimSpace(candidate)
+		}
+	}
+	return ""
 }
 
 func chartAccountValue(account string, authLabel string, authFile string, authIndex string) string {
@@ -295,6 +308,26 @@ func chartAccountValue(account string, authLabel string, authFile string, authIn
 		}
 	}
 	return ""
+}
+
+func looksLikeUUID(value string) bool {
+	value = strings.TrimSpace(value)
+	parts := strings.Split(value, "-")
+	if len(parts) != 5 {
+		return false
+	}
+	lengths := []int{8, 4, 4, 4, 12}
+	for index, part := range parts {
+		if len(part) != lengths[index] {
+			return false
+		}
+		for _, char := range part {
+			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func chartProviderOption(provider string, authIndex string, authLabel string, authFile string, account string) usage.ChartProviderOption {
