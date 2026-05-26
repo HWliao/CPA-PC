@@ -25,15 +25,24 @@ const (
 )
 
 type ChartQuery struct {
-	Range       ChartRange
-	Granularity ChartGranularity
-	Account     string
-	ProviderKey string
-	Provider    string
-	AuthIndex   string
-	APIKeyHash  string
-	Model       string
-	NowMS       int64
+	Range        ChartRange
+	Granularity  ChartGranularity
+	Account      string
+	ProviderKey  string
+	Provider     string
+	AuthIndex    string
+	APIKeyHash   string
+	Model        string
+	NowMS        int64
+	AuthMetadata []ChartAuthMetadata
+}
+
+type ChartAuthMetadata struct {
+	AuthID    string
+	AuthIndex string
+	Account   string
+	Label     string
+	AuthFile  string
 }
 
 type ChartMetricBucket struct {

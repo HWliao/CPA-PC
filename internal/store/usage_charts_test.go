@@ -246,26 +246,102 @@ func TestUsageChartsUsesAuthLabelForUUIDAccountSnapshotDisplay(t *testing.T) {
 	if len(charts.Options.Accounts) != 1 {
 		t.Fatalf("account options = %#v, want 1", charts.Options.Accounts)
 	}
-	if got := charts.Options.Accounts[0]; got.Value != accountID || got.Label != "Team Codex" || got.Account != accountID {
+	if got := charts.Options.Accounts[0]; got.Value != "Team Codex" || got.Label != "Team Codex" || got.Account != "Team Codex" || got.AuthIndex != "auth-a" {
 		t.Fatalf("account option = %#v", got)
 	}
 	if len(charts.ByAccount.Series) != 1 {
 		t.Fatalf("account series = %#v, want 1", charts.ByAccount.Series)
 	}
-	if got := charts.ByAccount.Series[0]; got.Key != accountID || got.Label != "Team Codex" || got.Account != accountID {
+	if got := charts.ByAccount.Series[0]; got.Key != "Team Codex" || got.Label != "Team Codex" || got.Account != "Team Codex" || got.AuthIndex != "auth-a" {
 		t.Fatalf("account series = %#v", got)
 	}
 
 	filtered, err := db.UsageCharts(context.Background(), usage.ChartQuery{
 		Range:       usage.ChartRange1H,
 		Granularity: usage.ChartGranularityHour,
-		Account:     accountID,
+		Account:     "Team Codex",
 		NowMS:       now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(filtered.ByAccount.Series) != 1 || filtered.ByAccount.Series[0].Label != "Team Codex" {
+		t.Fatalf("filtered account series = %#v", filtered.ByAccount.Series)
+	}
+}
+
+func TestUsageChartsUsesAuthMetadataForAuthIndexOnlyEvents(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 5, 22, 12, 30, 0, 0, time.UTC).UnixMilli()
+	const authID = "550e8400-e29b-41d4-a716-446655440000"
+	const authIndex = "auth-index-1"
+	_, err = db.InsertEvents(context.Background(), []usage.Event{{
+		EventHash:    "auth-index-only-event",
+		TimestampMS:  now - 20*60*1000,
+		Timestamp:    time.UnixMilli(now - 20*60*1000).UTC().Format(time.RFC3339Nano),
+		Provider:     "openai",
+		Model:        "gpt-test",
+		AuthIndex:    authID,
+		InputTokens:  100,
+		OutputTokens: 50,
+		CachedTokens: 10,
+		CreatedAtMS:  now - 20*60*1000,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	charts, err := db.UsageCharts(context.Background(), usage.ChartQuery{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		NowMS:       now,
+		AuthMetadata: []usage.ChartAuthMetadata{{
+			AuthID:    authID,
+			AuthIndex: authIndex,
+			Account:   "alice@example.com",
+			Label:     "Alice OAuth",
+			AuthFile:  "alice-auth.json",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(charts.Options.Accounts) != 1 {
+		t.Fatalf("account options = %#v, want 1", charts.Options.Accounts)
+	}
+	if got := charts.Options.Accounts[0]; got.Value != "alice@example.com" || got.Label != "alice@example.com" || got.Account != "alice@example.com" || got.AuthIndex != authIndex {
+		t.Fatalf("account option = %#v", got)
+	}
+	if len(charts.ByAccount.Series) != 1 {
+		t.Fatalf("account series = %#v, want 1", charts.ByAccount.Series)
+	}
+	if got := charts.ByAccount.Series[0]; got.Key != "alice@example.com" || got.Label != "alice@example.com" || got.Account != "alice@example.com" || got.AuthIndex != authIndex {
+		t.Fatalf("account series = %#v", got)
+	}
+
+	filtered, err := db.UsageCharts(context.Background(), usage.ChartQuery{
+		Range:       usage.ChartRange1H,
+		Granularity: usage.ChartGranularityHour,
+		Account:     "alice@example.com",
+		NowMS:       now,
+		AuthMetadata: []usage.ChartAuthMetadata{{
+			AuthID:    authID,
+			AuthIndex: authIndex,
+			Account:   "alice@example.com",
+			Label:     "Alice OAuth",
+			AuthFile:  "alice-auth.json",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered.ByAccount.Series) != 1 {
 		t.Fatalf("filtered account series = %#v", filtered.ByAccount.Series)
 	}
 }

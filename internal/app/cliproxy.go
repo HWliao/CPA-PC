@@ -77,13 +77,14 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 		WithConfig(cpaCfg).
 		WithConfigPath(cfg.Runtime.ConfigPath).
 		WithServerOptions(api.WithMiddleware(buildInfoHeaderMiddleware(opts.BuildDate))).
-		WithServerOptions(api.WithRouterConfigurator(func(engine *gin.Engine, _ *handlers.BaseAPIHandler, _ *cpaconfig.Config) {
+		WithServerOptions(api.WithRouterConfigurator(func(engine *gin.Engine, handler *handlers.BaseAPIHandler, _ *cpaconfig.Config) {
 			httpapi.RegisterRoutesWithOptions(engine, httpapi.RouteOptions{
-				Info:          info,
-				Store:         routeStore,
-				Config:        cfg,
-				ManagementKey: cfg.RemoteManagement.SecretKey,
-				StartedAt:     time.Now(),
+				Info:                      info,
+				Store:                     routeStore,
+				Config:                    cfg,
+				ManagementKey:             cfg.RemoteManagement.SecretKey,
+				StartedAt:                 time.Now(),
+				ChartAuthMetadataProvider: chartAuthMetadataProvider(handler),
 			})
 		})).
 		Build()
@@ -106,6 +107,59 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	}
 
 	return proxyService, nil
+}
+
+func chartAuthMetadataProvider(handler *handlers.BaseAPIHandler) func(context.Context) []pcusage.ChartAuthMetadata {
+	return func(context.Context) []pcusage.ChartAuthMetadata {
+		return chartAuthMetadataFromHandler(handler)
+	}
+}
+
+func chartAuthMetadataFromHandler(handler *handlers.BaseAPIHandler) []pcusage.ChartAuthMetadata {
+	if handler == nil || handler.AuthManager == nil {
+		return nil
+	}
+	auths := handler.AuthManager.List()
+	items := make([]pcusage.ChartAuthMetadata, 0, len(auths))
+	for _, auth := range auths {
+		if auth == nil {
+			continue
+		}
+		authIndex := strings.TrimSpace(auth.EnsureIndex())
+		if authIndex == "" {
+			continue
+		}
+		authFile := strings.TrimSpace(auth.FileName)
+		if authFile == "" {
+			authFile = strings.TrimSpace(auth.ID)
+		}
+		accountType, account := auth.AccountInfo()
+		account = strings.TrimSpace(account)
+		if strings.EqualFold(accountType, "api_key") {
+			account = ""
+		}
+		label := firstNonEmptyString(auth.Label, authFile, account, authIndex)
+		if account == "" {
+			account = label
+		}
+		items = append(items, pcusage.ChartAuthMetadata{
+			AuthID:    strings.TrimSpace(auth.ID),
+			AuthIndex: authIndex,
+			Account:   account,
+			Label:     label,
+			AuthFile:  authFile,
+		})
+	}
+	return items
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 type serviceWithCleanup struct {

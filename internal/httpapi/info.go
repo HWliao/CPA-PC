@@ -103,11 +103,12 @@ type apiKeyAliasesRequest struct {
 }
 
 type RouteOptions struct {
-	Info          Info
-	Store         UsageStore
-	Config        *pcconfig.Config
-	ManagementKey string
-	StartedAt     time.Time
+	Info                      Info
+	Store                     UsageStore
+	Config                    *pcconfig.Config
+	ManagementKey             string
+	StartedAt                 time.Time
+	ChartAuthMetadataProvider func(context.Context) []usage.ChartAuthMetadata
 }
 
 func RegisterRoutes(engine *gin.Engine, info Info) {
@@ -191,6 +192,9 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		if err != nil {
 			writeAPIError(c, http.StatusBadRequest, "request_failed", err.Error())
 			return
+		}
+		if opts.ChartAuthMetadataProvider != nil {
+			query.AuthMetadata = opts.ChartAuthMetadataProvider(c.Request.Context())
 		}
 		if opts.Store == nil {
 			c.JSON(http.StatusOK, usage.EmptyChartsResponse(query))

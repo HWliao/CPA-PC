@@ -43,6 +43,7 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 	accountSeries := map[string]*usage.ChartSeries{}
 	apiKeySeries := map[string]*usage.ChartSeries{}
 	modelSeries := map[string]*usage.ChartSeries{}
+	authMetadata := chartAuthMetadataMap(query.AuthMetadata)
 
 	for rows.Next() {
 		var timestampMS int64
@@ -58,7 +59,7 @@ func (s *Store) UsageCharts(ctx context.Context, query usage.ChartQuery) (usage.
 		authFileText := strings.TrimSpace(authFile.String)
 		accountText := strings.TrimSpace(account.String)
 		apiKeyHashText := strings.ToLower(strings.TrimSpace(apiKeyHash.String))
-		accountOption := chartAccountOption(authIndexText, authLabelText, authFileText, accountText)
+		accountOption := chartAccountOption(authIndexText, authLabelText, authFileText, accountText, authMetadata)
 		if query.Account != "" && accountOption.Value != query.Account {
 			continue
 		}
@@ -273,27 +274,27 @@ func apiKeyDisplayLabel(apiKeyHash string, aliases map[string]string) string {
 	return "sha256:" + hash
 }
 
-func chartAccountOption(authIndex string, authLabel string, authFile string, account string) usage.ChartAccountOption {
+func chartAccountOption(authIndex string, authLabel string, authFile string, account string, authMetadata map[string]usage.ChartAuthMetadata) usage.ChartAccountOption {
 	authIndex = strings.TrimSpace(authIndex)
-	account = strings.TrimSpace(account)
-	value := chartAccountValue(account, authLabel, authFile, authIndex)
+	meta := authMetadata[authIndex]
+	value := chartAccountValue(account, authLabel, authFile, authIndex, meta)
 	if value == "" {
 		return usage.ChartAccountOption{}
 	}
+	resolvedAuthIndex := strings.TrimSpace(meta.AuthIndex)
+	if resolvedAuthIndex == "" {
+		resolvedAuthIndex = authIndex
+	}
 	return usage.ChartAccountOption{
 		Value:     value,
-		Label:     chartAccountLabel(account, authLabel, authFile, authIndex),
-		Account:   account,
-		AuthIndex: authIndex,
+		Label:     chartAccountLabel(value, account, authLabel, authFile, authIndex, meta),
+		Account:   value,
+		AuthIndex: resolvedAuthIndex,
 	}
 }
 
-func chartAccountLabel(account string, authLabel string, authFile string, authIndex string) string {
-	account = strings.TrimSpace(account)
-	if account != "" && !looksLikeUUID(account) {
-		return account
-	}
-	for _, candidate := range []string{authLabel, authFile, account, authIndex} {
+func chartAccountLabel(value string, account string, authLabel string, authFile string, authIndex string, meta usage.ChartAuthMetadata) string {
+	for _, candidate := range []string{value, meta.Account, account, meta.Label, authLabel, meta.AuthFile, authFile, authIndex} {
 		if strings.TrimSpace(candidate) != "" {
 			return strings.TrimSpace(candidate)
 		}
@@ -301,13 +302,39 @@ func chartAccountLabel(account string, authLabel string, authFile string, authIn
 	return ""
 }
 
-func chartAccountValue(account string, authLabel string, authFile string, authIndex string) string {
-	for _, candidate := range []string{account, authLabel, authFile, authIndex} {
-		if strings.TrimSpace(candidate) != "" {
-			return strings.TrimSpace(candidate)
+func chartAccountValue(account string, authLabel string, authFile string, authIndex string, meta usage.ChartAuthMetadata) string {
+	fallback := ""
+	for _, candidate := range []string{meta.Account, account, meta.Label, authLabel, meta.AuthFile, authFile, authIndex} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if looksLikeOpaqueID(candidate) {
+			if fallback == "" {
+				fallback = candidate
+			}
+			continue
+		}
+		return candidate
+	}
+	return fallback
+}
+
+func looksLikeOpaqueID(value string) bool {
+	return looksLikeUUID(value) || looksLikeHexID(value)
+}
+
+func looksLikeHexID(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 16 && len(value) != 32 && len(value) != 64 {
+		return false
+	}
+	for _, char := range value {
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')) {
+			return false
 		}
 	}
-	return ""
+	return true
 }
 
 func looksLikeUUID(value string) bool {
@@ -328,6 +355,30 @@ func looksLikeUUID(value string) bool {
 		}
 	}
 	return true
+}
+
+func chartAuthMetadataMap(items []usage.ChartAuthMetadata) map[string]usage.ChartAuthMetadata {
+	if len(items) == 0 {
+		return nil
+	}
+	result := map[string]usage.ChartAuthMetadata{}
+	for _, item := range items {
+		item.AuthID = strings.TrimSpace(item.AuthID)
+		item.AuthIndex = strings.TrimSpace(item.AuthIndex)
+		if item.AuthID == "" && item.AuthIndex == "" {
+			continue
+		}
+		item.Account = strings.TrimSpace(item.Account)
+		item.Label = strings.TrimSpace(item.Label)
+		item.AuthFile = strings.TrimSpace(item.AuthFile)
+		for _, key := range []string{item.AuthIndex, item.AuthID} {
+			key = strings.TrimSpace(key)
+			if key != "" {
+				result[key] = item
+			}
+		}
+	}
+	return result
 }
 
 func chartProviderOption(provider string, authIndex string, authLabel string, authFile string, account string) usage.ChartProviderOption {

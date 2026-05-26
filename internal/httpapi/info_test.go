@@ -197,6 +197,36 @@ func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesPassesAuthMetadataToUsageCharts(t *testing.T) {
+	store := &fakeUsageStore{}
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	RegisterRoutesWithOptions(engine, RouteOptions{
+		Info:  Info{Version: "test", CPA: CPAInfo{Port: 8317}},
+		Store: store,
+		Config: &pcconfig.Config{
+			Usage: pcconfig.Usage{Enabled: true, QueryLimit: 123},
+		},
+		ManagementKey: "123456",
+		ChartAuthMetadataProvider: func(context.Context) []usage.ChartAuthMetadata {
+			return []usage.ChartAuthMetadata{{
+				AuthIndex: "auth-index-1",
+				Account:   "alice@example.com",
+				Label:     "Alice OAuth",
+				AuthFile:  "alice-auth.json",
+			}}
+		},
+	})
+
+	rec := performRequest(engine, http.MethodGet, "/v0/management/usage/charts", "123456")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if len(store.chartQuery.AuthMetadata) != 1 || store.chartQuery.AuthMetadata[0].Account != "alice@example.com" {
+		t.Fatalf("chart auth metadata = %#v", store.chartQuery.AuthMetadata)
+	}
+}
+
 func TestRegisterRoutesServesEmptyUsageChartsWithoutStore(t *testing.T) {
 	g := newTestRouter(nil)
 

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	pcconfig "github.com/HWliao/CPA-PC/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
@@ -188,6 +190,52 @@ func TestSDKStartupRegistersBuiltInTranslators(t *testing.T) {
 	}
 	if _, ok := payload["messages"]; ok {
 		t.Fatalf("translated payload still contains Chat Completions messages: %s", out)
+	}
+}
+
+func TestChartAuthMetadataFromHandlerUsesReadableAccount(t *testing.T) {
+	manager := coreauth.NewManager(nil, nil, nil)
+	registered, err := manager.Register(context.Background(), &coreauth.Auth{
+		ID:       "auth-id-1",
+		Provider: "codex",
+		FileName: "alice-auth.json",
+		Label:    "Alice OAuth",
+		Metadata: map[string]any{"email": "alice@example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := chartAuthMetadataFromHandler(&handlers.BaseAPIHandler{AuthManager: manager})
+	if len(items) != 1 {
+		t.Fatalf("metadata = %#v, want 1 item", items)
+	}
+	if items[0].AuthID != registered.ID || items[0].AuthIndex != registered.Index || items[0].Account != "alice@example.com" || items[0].Label != "Alice OAuth" || items[0].AuthFile != "alice-auth.json" {
+		t.Fatalf("metadata item = %#v", items[0])
+	}
+}
+
+func TestChartAuthMetadataFromHandlerDoesNotExposeAPIKeys(t *testing.T) {
+	manager := coreauth.NewManager(nil, nil, nil)
+	_, err := manager.Register(context.Background(), &coreauth.Auth{
+		ID:         "auth-id-1",
+		Provider:   "openai",
+		FileName:   "team-key.json",
+		Attributes: map[string]string{"api_key": "placeholder-key-value"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := chartAuthMetadataFromHandler(&handlers.BaseAPIHandler{AuthManager: manager})
+	if len(items) != 1 {
+		t.Fatalf("metadata = %#v, want 1 item", items)
+	}
+	if strings.Contains(items[0].Account, "placeholder-key") || strings.Contains(items[0].Label, "placeholder-key") {
+		t.Fatalf("metadata exposed API key: %#v", items[0])
+	}
+	if items[0].Account != "team-key.json" || items[0].Label != "team-key.json" {
+		t.Fatalf("metadata item = %#v", items[0])
 	}
 }
 
