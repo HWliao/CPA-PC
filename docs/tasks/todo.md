@@ -63,7 +63,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 4: Final Verification
 
-- [ ] Task 7: Run final checks and review diff
+- [x] Task 7: Run final checks and review diff
   - Acceptance: focused backend tests pass; frontend type check passes; lint passes if frontend files changed; relevant frontend tests pass if added/updated; generated static asset is not touched unless rebuilt through `npm --prefix web run build`.
   - Verify: `go test ./internal/httpapi ./internal/store`; `npm --prefix web run type-check`; `npm --prefix web run lint`; `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests exist; `go test ./...` if warranted.
   - Dependencies: Tasks 1-6
@@ -71,6 +71,6 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Complete
 
-- [ ] All `docs/SPEC.md` acceptance criteria are satisfied.
-- [ ] No unrelated monitoring charts, quota panels, config merging, packaging, or Windows script code was changed.
+- [x] All `docs/SPEC.md` acceptance criteria are satisfied.
+- [x] No unrelated monitoring charts, quota panels, config merging, packaging, or Windows script code was changed.
 - [ ] Human review approves the completed implementation.
