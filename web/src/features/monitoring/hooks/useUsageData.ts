@@ -5,6 +5,7 @@ import {
   usageServiceApi,
   type ApiKeyAlias,
   type ApiKeyAliasesResponse,
+  type ModelPriceSyncRequest,
   type ModelPricesResponse,
   type ModelPriceSyncResponse,
   type UsageExportResponse,
@@ -33,7 +34,7 @@ export interface UseUsageDataReturn {
   usageServiceAvailable: boolean;
   setModelPrices: (prices: Record<string, ModelPrice>) => Promise<void>;
   loadApiKeyAliases: () => Promise<void>;
-  syncModelPrices: (models?: string[]) => Promise<ModelPriceSyncResponse>;
+  syncModelPrices: (request?: ModelPriceSyncRequest) => Promise<ModelPriceSyncResponse>;
   exportUsage: () => Promise<UsageExportResponse>;
   importUsage: (file: File) => Promise<UsageImportResponse>;
   loadUsage: () => Promise<void>;
@@ -109,12 +110,12 @@ export function useUsageData(): UseUsageDataReturn {
   );
 
   const syncModelPricesFromApi = useCallback(
-    async (models?: string[]): Promise<ModelPriceSyncResponse> => {
+    async (request?: ModelPriceSyncRequest): Promise<ModelPriceSyncResponse> => {
       const serviceBase = await resolveUsageServiceBase();
       if (!serviceBase) {
         throw new Error('model_price_sync_requires_usage_service');
       }
-      return usageServiceApi.syncModelPrices(serviceBase, managementKey, models);
+      return usageServiceApi.syncModelPrices(serviceBase, managementKey, request);
     },
     [managementKey, resolveUsageServiceBase]
   );
@@ -223,8 +224,8 @@ export function useUsageData(): UseUsageDataReturn {
   );
 
   const syncModelPrices = useCallback(
-    async (models?: string[]) => {
-      const response = await syncModelPricesFromApi(models);
+    async (request?: ModelPriceSyncRequest) => {
+      const response = await syncModelPricesFromApi(request);
       setModelPricesState(response.prices ?? {});
       clearModelPrices();
       return response;

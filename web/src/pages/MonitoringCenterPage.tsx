@@ -2187,6 +2187,11 @@ export function MonitoringCenterPage() {
     [syncPriceModels, t]
   );
 
+  const syncPriceTargets = useMemo(
+    () => syncPriceModels.map((model) => ({ provider: '', model })),
+    [syncPriceModels]
+  );
+
   const authFilesByAuthIndex = useMemo(() => {
     const map = new Map<string, AuthFileItem>();
     authFiles.forEach((file) => {
@@ -2893,7 +2898,7 @@ export function MonitoringCenterPage() {
     }
     setSyncingPrices(true);
     try {
-      const result = await syncModelPrices(syncPriceModels);
+      const result = await syncModelPrices({ source: 'embedded', models: syncPriceTargets });
       showNotification(
         t('usage_stats.model_price_sync_success', {
           count: result.imported,
@@ -2912,7 +2917,7 @@ export function MonitoringCenterPage() {
     } finally {
       setSyncingPrices(false);
     }
-  }, [showNotification, syncModelPrices, syncPriceModels, t]);
+  }, [showNotification, syncModelPrices, syncPriceModels.length, syncPriceTargets, t]);
 
   const resolveUsageTransferError = useCallback(
     (error: unknown) => {

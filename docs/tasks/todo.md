@@ -37,7 +37,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 3: Frontend API And Sync Flow
 
-- [ ] Task 4: Update frontend sync types and hook signature
+- [x] Task 4: Update frontend sync types and hook signature
   - Acceptance: frontend has `ModelPriceSyncSource`; sync targets include provider/model; API sends `{ source, models }`; hook exposes new signature without unrelated behavior changes.
   - Verify: `npm --prefix web run type-check`
   - Dependencies: Task 1

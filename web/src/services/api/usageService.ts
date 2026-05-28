@@ -118,6 +118,18 @@ export interface ModelPricesResponse {
   prices: Record<string, ModelPrice>;
 }
 
+export type ModelPriceSyncSource = 'embedded' | 'model.dev';
+
+export interface ModelPriceSyncTarget {
+  provider: string;
+  model: string;
+}
+
+export interface ModelPriceSyncRequest {
+  source: ModelPriceSyncSource;
+  models: ModelPriceSyncTarget[];
+}
+
 export interface ModelPriceSyncResponse extends ModelPricesResponse {
   source?: string;
   imported: number;
@@ -523,12 +535,12 @@ export const usageServiceApi = {
   syncModelPrices: async (
     base: string,
     managementKey?: string,
-    models?: string[]
+    request?: ModelPriceSyncRequest
   ): Promise<ModelPriceSyncResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.post<ModelPriceSyncResponse>(
         buildUrl(base, '/v0/management/model-prices/sync'),
-        models ? { models } : {},
+        request ? { source: request.source, models: request.models } : {},
         {
           timeout: 30 * 1000,
           headers: authHeaders(managementKey),
