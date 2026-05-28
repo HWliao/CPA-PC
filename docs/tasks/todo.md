@@ -49,7 +49,7 @@ Status: Draft for human review. Do not implement until approved.
   - Dependencies: Task 4
   - Files: `web/src/pages/MonitoringCenterPage.tsx`, optional `web/src/pages/MonitoringCenterPage.test.tsx`
 
-- [ ] Task 6: Rename price labels in UI locales
+- [x] Task 6: Rename price labels in UI locales
   - Acceptance: zh-CN uses `输入价格`, `输出价格`, `输入缓存价格`; English uses `Input price`, `Output price`, `Input cache price`; zh-TW and ru avoid stale prompt/completion wording; UI still has exactly three price fields.
   - Verify: `npm --prefix web run type-check`; `npm --prefix web run lint`
   - Dependencies: None, should land with Task 5
@@ -57,9 +57,9 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Frontend UI
 
-- [ ] Price labels are clear in the model price modal.
-- [ ] Sync source selection is required before sync starts.
-- [ ] Frontend type check passes.
+- [x] Price labels are clear in the model price modal.
+- [x] Sync source selection is required before sync starts.
+- [x] Frontend type check passes.
 
 ## Phase 4: Final Verification
 
