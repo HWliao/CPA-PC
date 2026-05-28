@@ -91,6 +91,7 @@ import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useInterval } from '@/hooks/useInterval';
 import { useRequestMonitoringAvailability } from '@/hooks/useRequestMonitoringAvailability';
 import { authFilesApi, requestCodexUsagePayload } from '@/services/api';
+import type { ModelPriceSyncSource } from '@/services/api/usageService';
 import { useAuthStore, useConfigStore, useNotificationStore } from '@/stores';
 import type { AuthFileItem, CodexUsagePayload } from '@/types';
 import { formatFileSize, maskSensitiveText } from '@/utils/format';
@@ -1890,6 +1891,43 @@ export function AccountOverviewCard({
   );
 }
 
+export function ModelPriceSyncSourceModal({
+  open,
+  syncing,
+  t,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  syncing: boolean;
+  t: TFunction;
+  onClose: () => void;
+  onConfirm: (source: ModelPriceSyncSource) => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('usage_stats.model_price_sync')}
+      width={420}
+      className={styles.monitorModal}
+      closeDisabled={syncing}
+    >
+      <div className={styles.priceActionsBar}>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={syncing}>
+          {t('common.cancel')}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => onConfirm('embedded')} loading={syncing}>
+          embedded
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => onConfirm('model.dev')} loading={syncing}>
+          model.dev
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 export function MonitoringCenterPage() {
   const { t, i18n } = useTranslation();
   const config = useConfigStore((state) => state.config);
@@ -1915,6 +1953,7 @@ export function MonitoringCenterPage() {
   const [focusedAccount, setFocusedAccount] = useState<string | null>(null);
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const [isCustomRangeModalOpen, setIsCustomRangeModalOpen] = useState(false);
+  const [isSyncSourceModalOpen, setIsSyncSourceModalOpen] = useState(false);
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [usageExporting, setUsageExporting] = useState(false);
   const [usageImporting, setUsageImporting] = useState(false);
@@ -2896,13 +2935,23 @@ export function MonitoringCenterPage() {
       showNotification(t('usage_stats.model_price_sync_no_models'), 'warning');
       return;
     }
+    setIsSyncSourceModalOpen(true);
+  }, [showNotification, syncPriceModels.length, t]);
+
+  const handleCloseSyncSourceModal = useCallback(() => {
+    if (syncingPrices) return;
+    setIsSyncSourceModalOpen(false);
+  }, [syncingPrices]);
+
+  const handleConfirmSyncModelPrices = useCallback(async (source: ModelPriceSyncSource) => {
     setSyncingPrices(true);
     try {
-      const result = await syncModelPrices({ source: 'embedded', models: syncPriceTargets });
+      const result = await syncModelPrices({ source, models: syncPriceTargets });
+      setIsSyncSourceModalOpen(false);
       showNotification(
         t('usage_stats.model_price_sync_success', {
           count: result.imported,
-          source: result.source || 'LiteLLM',
+          source: result.source || source,
         }),
         'success'
       );
@@ -2917,7 +2966,7 @@ export function MonitoringCenterPage() {
     } finally {
       setSyncingPrices(false);
     }
-  }, [showNotification, syncModelPrices, syncPriceModels.length, syncPriceTargets, t]);
+  }, [showNotification, syncModelPrices, syncPriceTargets, t]);
 
   const resolveUsageTransferError = useCallback(
     (error: unknown) => {
@@ -3877,6 +3926,14 @@ export function MonitoringCenterPage() {
           ) : null}
         </div>
       </Modal>
+
+      <ModelPriceSyncSourceModal
+        open={isSyncSourceModalOpen}
+        syncing={syncingPrices}
+        t={t}
+        onClose={handleCloseSyncSourceModal}
+        onConfirm={handleConfirmSyncModelPrices}
+      />
 
       <Modal
         open={isPriceModalOpen}

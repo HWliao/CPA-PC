@@ -43,7 +43,7 @@ Status: Draft for human review. Do not implement until approved.
   - Dependencies: Task 1
   - Files: `web/src/services/api/usageService.ts`, `web/src/features/monitoring/hooks/useUsageData.ts`
 
-- [ ] Task 5: Add source selection modal to request monitoring
+- [x] Task 5: Add source selection modal to request monitoring
   - Acceptance: one-click sync opens source modal before API call; modal lists `embedded` and `model.dev`; confirming sync sends selected source and targets; notifications remain clear.
   - Verify: `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests are practical; `npm --prefix web run type-check`
   - Dependencies: Task 4

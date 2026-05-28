@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
-import { AccountExpandedDetails, AccountOverviewCard } from './MonitoringCenterPage';
+import {
+  AccountExpandedDetails,
+  AccountOverviewCard,
+  ModelPriceSyncSourceModal,
+} from './MonitoringCenterPage';
 import { buildEmptyMonitoringStatusData } from '@/features/monitoring/accountOverviewState';
 import { buildRealtimeSourceDisplay } from '@/features/monitoring/realtimeSourceDisplay';
 
@@ -46,6 +50,7 @@ const t = ((key: string, options?: Record<string, unknown>) => {
     'monitoring.cached_tokens': 'Cached Tokens',
     'monitoring.estimated_cost': 'Estimated Cost',
     'usage_stats.model_price_model': 'Model',
+    'usage_stats.model_price_sync': 'Sync prices',
     'monitoring.last_sync': 'Last sync',
     'monitoring.account_quota_reset_at': 'Reset',
     'monitoring.filter_provider': 'Provider',
@@ -67,6 +72,21 @@ const t = ((key: string, options?: Record<string, unknown>) => {
 }) as TFunction;
 
 describe('MonitoringCenterPage account card', () => {
+  it('renders model price sync source choices', () => {
+    const html = renderToStaticMarkup(
+      <ModelPriceSyncSourceModal
+        open
+        syncing={false}
+        t={t}
+        onClose={() => {}}
+        onConfirm={() => {}}
+      />
+    );
+
+    expect(html).toContain('embedded');
+    expect(html).toContain('model.dev');
+  });
+
   it('prefers readable channel names in realtime source cells', () => {
     const display = buildRealtimeSourceDisplay(
       {
