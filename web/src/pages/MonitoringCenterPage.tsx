@@ -126,6 +126,14 @@ const AUTO_REFRESH_OPTIONS = [
   { value: '300000', labelKey: 'monitoring.auto_refresh_5m' },
 ];
 
+const MODEL_PRICE_SYNC_SOURCE_OPTIONS: Array<{
+  value: ModelPriceSyncSource;
+  label: string;
+}> = [
+  { value: 'model.dev', label: 'model.dev' },
+  { value: 'embedded', label: 'embedded' },
+];
+
 const REALTIME_PAGE_SIZE_OPTIONS = [10, 50, 100, 150, 300] as const;
 const DEFAULT_ACCOUNT_PAGE_SIZE = ACCOUNT_OVERVIEW_TABLE_PAGE_SIZE_OPTIONS[0];
 const DEFAULT_REALTIME_PAGE_SIZE = 10;
@@ -1904,6 +1912,9 @@ export function ModelPriceSyncSourceModal({
   onClose: () => void;
   onConfirm: (source: ModelPriceSyncSource) => void;
 }) {
+  const sourceSelectId = useId();
+  const [selectedSource, setSelectedSource] = useState<ModelPriceSyncSource>('model.dev');
+
   return (
     <Modal
       open={open}
@@ -1913,15 +1924,28 @@ export function ModelPriceSyncSourceModal({
       className={styles.monitorModal}
       closeDisabled={syncing}
     >
+      <div className={styles.priceField}>
+        <label htmlFor={sourceSelectId}>{t('usage_stats.model_price_sync_source')}</label>
+        <select
+          id={sourceSelectId}
+          value={selectedSource}
+          onChange={(event) => setSelectedSource(event.target.value as ModelPriceSyncSource)}
+          aria-label={t('usage_stats.model_price_sync_source')}
+          disabled={syncing}
+        >
+          {MODEL_PRICE_SYNC_SOURCE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className={styles.priceActionsBar}>
         <Button variant="secondary" size="sm" onClick={onClose} disabled={syncing}>
           {t('common.cancel')}
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => onConfirm('embedded')} loading={syncing}>
-          embedded
-        </Button>
-        <Button variant="primary" size="sm" onClick={() => onConfirm('model.dev')} loading={syncing}>
-          model.dev
+        <Button variant="primary" size="sm" onClick={() => onConfirm(selectedSource)} loading={syncing}>
+          {t('common.confirm')}
         </Button>
       </div>
     </Modal>
@@ -3928,6 +3952,7 @@ export function MonitoringCenterPage() {
       </Modal>
 
       <ModelPriceSyncSourceModal
+        key={isSyncSourceModalOpen ? 'open' : 'closed'}
         open={isSyncSourceModalOpen}
         syncing={syncingPrices}
         t={t}

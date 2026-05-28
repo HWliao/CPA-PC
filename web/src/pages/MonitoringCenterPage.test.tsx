@@ -14,6 +14,8 @@ const t = ((key: string, options?: Record<string, unknown>) => {
     'monitoring.account_overview_enable_all': 'Enable all',
     'monitoring.account_overview_disable_all': 'Disable all',
     'monitoring.restore_account_scope': 'Restore account scope',
+    'common.confirm': 'Confirm',
+    'common.cancel': 'Cancel',
     'monitoring.focus_account': 'Focus account',
     'monitoring.account_overview_enabled_label': 'Enabled',
     'monitoring.account_overview_enabled_label_short': 'Enabled',
@@ -51,6 +53,7 @@ const t = ((key: string, options?: Record<string, unknown>) => {
     'monitoring.estimated_cost': 'Estimated Cost',
     'usage_stats.model_price_model': 'Model',
     'usage_stats.model_price_sync': 'Sync prices',
+    'usage_stats.model_price_sync_source': 'Price source',
     'monitoring.last_sync': 'Last sync',
     'monitoring.account_quota_reset_at': 'Reset',
     'monitoring.filter_provider': 'Provider',
@@ -72,7 +75,7 @@ const t = ((key: string, options?: Record<string, unknown>) => {
 }) as TFunction;
 
 describe('MonitoringCenterPage account card', () => {
-  it('renders model price sync source choices', () => {
+  it('renders model price sync source selector with model.dev selected by default', () => {
     const html = renderToStaticMarkup(
       <ModelPriceSyncSourceModal
         open
@@ -85,6 +88,7 @@ describe('MonitoringCenterPage account card', () => {
 
     expect(html).toContain('embedded');
     expect(html).toContain('model.dev');
+    expect(html).toContain('Confirm');
   });
 
   it('prefers readable channel names in realtime source cells', () => {

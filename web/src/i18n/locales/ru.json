@@ -1072,6 +1072,7 @@
     "model_price_model": "Модель",
     "model_price_saved": "Цена модели сохранена",
     "model_price_sync": "Синхронизировать цены",
+    "model_price_sync_source": "Источник цен",
     "model_price_sync_success": "Синхронизировано {{count}} цен моделей из {{source}}",
     "model_price_sync_failed": "Не удалось синхронизировать цены моделей",
     "model_price_sync_no_models": "Нет моделей для синхронизации",
