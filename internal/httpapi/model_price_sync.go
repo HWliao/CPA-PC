@@ -112,6 +112,59 @@ func parseModelsDevPrices(data []byte) (map[string]map[string]pcstore.ModelPrice
 	return prices, nil
 }
 
+func syncModelsDevPrices(ctx context.Context, current map[string]pcstore.ModelPrice, targets []modelPriceSyncTarget, endpoint string) (map[string]pcstore.ModelPrice, int, int, error) {
+	prices := cloneModelPrices(current)
+	if len(targets) == 0 {
+		return prices, 0, 0, nil
+	}
+	catalog, err := fetchModelsDevPrices(ctx, nil, endpoint)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	now := time.Now().UnixMilli()
+	imported := 0
+	skipped := 0
+	for _, target := range targets {
+		modelKey := strings.TrimSpace(target.Model)
+		modelID := normalizeModelsDevID(modelKey)
+		providerID := normalizeModelPriceProvider(target.Provider, modelID)
+		if modelKey == "" || modelID == "" || providerID == "" {
+			skipped++
+			continue
+		}
+		providerPrices := catalog[providerID]
+		price, ok := providerPrices[modelID]
+		if !ok {
+			skipped++
+			continue
+		}
+		syncedAt := now
+		price.Source = modelsDevSyncSource
+		price.SourceModelID = providerID + "/" + modelID
+		price.SyncedAtMS = &syncedAt
+		prices[modelKey] = price
+		imported++
+	}
+	return prices, imported, skipped, nil
+}
+
+func cloneModelPrices(prices map[string]pcstore.ModelPrice) map[string]pcstore.ModelPrice {
+	cloned := make(map[string]pcstore.ModelPrice, len(prices))
+	for model, price := range prices {
+		cloned[model] = price
+	}
+	return cloned
+}
+
+func normalizeModelPriceProvider(provider string, modelID string) string {
+	providerID := normalizeModelsDevID(provider)
+	if providerID == "codex" || strings.HasPrefix(modelID, "gpt-") {
+		return "openai"
+	}
+	return providerID
+}
+
 func normalizeModelsDevID(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }

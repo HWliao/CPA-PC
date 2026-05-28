@@ -23,7 +23,7 @@ Status: Draft for human review. Do not implement until approved.
   - Dependencies: Task 1
   - Files: `internal/httpapi/info.go` or helper file, `internal/httpapi/info_test.go` or focused test file
 
-- [ ] Task 3: Match and import models.dev prices
+- [x] Task 3: Match and import models.dev prices
   - Acceptance: matching uses provider+model; Codex and `gpt-*` normalize to OpenAI; imported prices include `source = "model.dev"`; skipped/unrequested models preserve existing prices; imported/skipped counts are accurate.
   - Verify: `go test ./internal/httpapi ./internal/store`
   - Dependencies: Task 2
@@ -31,9 +31,9 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Backend Sync
 
-- [ ] `embedded` and `model.dev` source paths are both tested.
-- [ ] Unit tests make no live network calls.
-- [ ] Manual prices are preserved for skipped/unrequested models.
+- [x] `embedded` and `model.dev` source paths are both tested.
+- [x] Unit tests make no live network calls.
+- [x] Manual prices are preserved for skipped/unrequested models.
 
 ## Phase 3: Frontend API And Sync Flow
 

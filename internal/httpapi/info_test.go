@@ -550,6 +550,69 @@ func TestRegisterRoutesSyncModelPricesRejectsInvalidSource(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesSyncModelPricesImportsModelsDevPrices(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api.json" {
+			t.Fatalf("path = %q, want /api.json", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"openai": {"id":"openai","models":{
+				"gpt-test":{"id":"gpt-test","cost":{"input":2,"output":8,"cache_read":0.5}},
+				"gpt-mini":{"id":"gpt-mini","cost":{"input":1,"output":4}}
+			}},
+			"anthropic": {"id":"anthropic","models":{
+				"claude-test":{"id":"claude-test","cost":{"input":3,"output":15,"cache_read":0.3}}
+			}}
+		}`))
+	}))
+	defer server.Close()
+
+	store := &fakeUsageStore{modelPrices: map[string]pcstore.ModelPrice{
+		"missing-model": {Prompt: 5, Source: "manual"},
+		"untouched":     {Prompt: 7, Source: "manual"},
+	}}
+	g := newTestRouterWithModelsDevAPIURL(store, server.URL+"/api.json")
+	body := []byte(`{"source":"model.dev","models":[` +
+		`{"provider":"codex","model":"gpt-test"},` +
+		`{"provider":"","model":"gpt-mini"},` +
+		`{"provider":"anthropic","model":"claude-test"},` +
+		`{"provider":"openai","model":"missing-model"}` +
+		`]}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/v0/management/model-prices/sync", "123456", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Source   string                        `json:"source"`
+		Imported int                           `json:"imported"`
+		Skipped  int                           `json:"skipped"`
+		Prices   map[string]pcstore.ModelPrice `json:"prices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != "model.dev" || got.Imported != 3 || got.Skipped != 1 {
+		t.Fatalf("sync response = %#v", got)
+	}
+	if price := got.Prices["gpt-test"]; price.Prompt != 2 || price.Completion != 8 || price.Cache != 0.5 || price.Source != "model.dev" || price.SourceModelID != "openai/gpt-test" || price.SyncedAtMS == nil {
+		t.Fatalf("gpt-test price = %#v", price)
+	}
+	if price := got.Prices["gpt-mini"]; price.Prompt != 1 || price.Completion != 4 || price.Cache != 0.1 || price.SourceModelID != "openai/gpt-mini" {
+		t.Fatalf("gpt-mini price = %#v", price)
+	}
+	if price := got.Prices["claude-test"]; price.Prompt != 3 || price.Completion != 15 || price.Cache != 0.3 || price.SourceModelID != "anthropic/claude-test" {
+		t.Fatalf("claude-test price = %#v", price)
+	}
+	if price := got.Prices["missing-model"]; price.Prompt != 5 || price.Source != "manual" {
+		t.Fatalf("missing-model price = %#v", price)
+	}
+	if price := got.Prices["untouched"]; price.Prompt != 7 || price.Source != "manual" {
+		t.Fatalf("untouched price = %#v", price)
+	}
+}
+
 func TestRegisterRoutesServesAPIKeyAliases(t *testing.T) {
 	store := &fakeUsageStore{}
 	g := newTestRouter(store)
@@ -627,6 +690,25 @@ func TestRegisterRoutesExportsAndImportsUsageJSONL(t *testing.T) {
 
 func newTestRouter(store UsageStore) *gin.Engine {
 	return newTestRouterWithOptions(store, "123456")
+}
+
+func newTestRouterWithModelsDevAPIURL(store UsageStore, modelsDevAPIURL string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	RegisterRoutesWithOptions(engine, RouteOptions{
+		Info:            Info{Version: "test", CPA: CPAInfo{Port: 8317}},
+		Store:           store,
+		StartedAt:       time.UnixMilli(1_779_000_000_000),
+		ModelsDevAPIURL: modelsDevAPIURL,
+		Config: &pcconfig.Config{
+			Usage: pcconfig.Usage{Enabled: true, QueryLimit: 123},
+			Runtime: pcconfig.RuntimePaths{
+				UsageDBPath: "test.sqlite",
+			},
+		},
+		ManagementKey: "123456",
+	})
+	return engine
 }
 
 func newTestRouterWithManagementKey(t *testing.T, store UsageStore, key string) *gin.Engine {

@@ -119,6 +119,7 @@ type RouteOptions struct {
 	ManagementKey             string
 	StartedAt                 time.Time
 	ChartAuthMetadataProvider func(context.Context) []usage.ChartAuthMetadata
+	ModelsDevAPIURL           string
 }
 
 func RegisterRoutes(engine *gin.Engine, info Info) {
@@ -281,12 +282,15 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 			writeAPIError(c, http.StatusBadRequest, "request_failed", err.Error())
 			return
 		}
-		source := strings.TrimSpace(req.Source)
+		source := strings.ToLower(strings.TrimSpace(req.Source))
 		if source == "" {
 			source = modelPriceSyncSource
 		}
-		if source != modelPriceSyncSource {
+		if source != modelPriceSyncSource && source != modelsDevSyncSource {
 			writeAPIError(c, http.StatusBadRequest, "model_price_sync_failed", "unsupported model price sync source")
+			return
+		}
+		if source == modelsDevSyncSource && !requireStore(c, opts.Store) {
 			return
 		}
 		if opts.Store == nil {
@@ -303,10 +307,23 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load model prices"})
 			return
 		}
+		imported := 0
+		skipped := 0
+		if source == modelsDevSyncSource {
+			prices, imported, skipped, err = syncModelsDevPrices(c.Request.Context(), prices, req.Models, opts.ModelsDevAPIURL)
+			if err != nil {
+				writeAPIError(c, http.StatusBadGateway, "model_price_sync_failed", err.Error())
+				return
+			}
+			if err := opts.Store.SaveModelPrices(c.Request.Context(), prices); err != nil {
+				writeAPIError(c, http.StatusInternalServerError, "model_price_sync_failed", err.Error())
+				return
+			}
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"source":   source,
-			"imported": 0,
-			"skipped":  0,
+			"imported": imported,
+			"skipped":  skipped,
 			"prices":   prices,
 		})
 	})
