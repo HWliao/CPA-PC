@@ -4,7 +4,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 1: Backend Contract And Embedded Source
 
-- [ ] Task 1: Extend model price sync request contract
+- [x] Task 1: Extend model price sync request contract
   - Acceptance: `source: "embedded"` and provider/model targets are accepted; missing source defaults to `embedded`; embedded returns stored prices with `imported = 0`, `skipped = 0`; invalid source returns bad request.
   - Verify: `go test ./internal/httpapi`
   - Dependencies: None
@@ -12,8 +12,8 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Checkpoint: Backend Contract
 
-- [ ] Existing empty-body sync clients still work.
-- [ ] Route contract can carry provider/model targets.
+- [x] Existing empty-body sync clients still work.
+- [x] Route contract can carry provider/model targets.
 
 ## Phase 2: Backend models.dev Sync
 

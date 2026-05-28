@@ -98,6 +98,16 @@ type modelPricesRequest struct {
 	Prices map[string]pcstore.ModelPrice `json:"prices"`
 }
 
+type modelPriceSyncRequest struct {
+	Source string                 `json:"source"`
+	Models []modelPriceSyncTarget `json:"models"`
+}
+
+type modelPriceSyncTarget struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
 type apiKeyAliasesRequest struct {
 	Items []pcstore.APIKeyAlias `json:"items"`
 }
@@ -266,9 +276,22 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		if !protected(c) {
 			return
 		}
+		var req modelPriceSyncRequest
+		if err := decodeOptionalJSONBody(c, &req); err != nil {
+			writeAPIError(c, http.StatusBadRequest, "request_failed", err.Error())
+			return
+		}
+		source := strings.TrimSpace(req.Source)
+		if source == "" {
+			source = modelPriceSyncSource
+		}
+		if source != modelPriceSyncSource {
+			writeAPIError(c, http.StatusBadRequest, "model_price_sync_failed", "unsupported model price sync source")
+			return
+		}
 		if opts.Store == nil {
 			c.JSON(http.StatusOK, gin.H{
-				"source":   modelPriceSyncSource,
+				"source":   source,
 				"imported": 0,
 				"skipped":  0,
 				"prices":   map[string]pcstore.ModelPrice{},
@@ -281,7 +304,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"source":   modelPriceSyncSource,
+			"source":   source,
 			"imported": 0,
 			"skipped":  0,
 			"prices":   prices,
@@ -495,6 +518,20 @@ func managementKeyEqual(provided, configured string) bool {
 func decodeJSONBody(c *gin.Context, value any) error {
 	decoder := json.NewDecoder(c.Request.Body)
 	return decoder.Decode(value)
+}
+
+func decodeOptionalJSONBody(c *gin.Context, value any) error {
+	if c.Request.Body == nil {
+		return nil
+	}
+	data, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil
+	}
+	return json.Unmarshal(data, value)
 }
 
 func requireStore(c *gin.Context, store UsageStore) bool {

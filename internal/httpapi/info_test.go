@@ -506,6 +506,50 @@ func TestRegisterRoutesSyncModelPricesReturnsStoredPrices(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesSyncModelPricesAcceptsEmbeddedSourceAndTargets(t *testing.T) {
+	store := &fakeUsageStore{modelPrices: map[string]pcstore.ModelPrice{"gpt-test": {Prompt: 1}}}
+	g := newTestRouter(store)
+	body := []byte(`{"source":"embedded","models":[{"provider":"openai","model":"gpt-test"}]}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/v0/management/model-prices/sync", "123456", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Source   string                        `json:"source"`
+		Imported int                           `json:"imported"`
+		Skipped  int                           `json:"skipped"`
+		Prices   map[string]pcstore.ModelPrice `json:"prices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != "embedded" || got.Imported != 0 || got.Skipped != 0 || got.Prices["gpt-test"].Prompt != 1 {
+		t.Fatalf("sync response = %#v", got)
+	}
+}
+
+func TestRegisterRoutesSyncModelPricesRejectsInvalidSource(t *testing.T) {
+	store := &fakeUsageStore{modelPrices: map[string]pcstore.ModelPrice{"gpt-test": {Prompt: 1}}}
+	g := newTestRouter(store)
+	body := []byte(`{"source":"litellm","models":[{"provider":"openai","model":"gpt-test"}]}`)
+
+	rec := performRequestWithBody(g, http.MethodPost, "/v0/management/model-prices/sync", "123456", body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	var got struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Code != "model_price_sync_failed" || got.Error == "" {
+		t.Fatalf("error response = %#v", got)
+	}
+}
+
 func TestRegisterRoutesServesAPIKeyAliases(t *testing.T) {
 	store := &fakeUsageStore{}
 	g := newTestRouter(store)
