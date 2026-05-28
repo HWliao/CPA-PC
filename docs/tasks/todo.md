@@ -17,7 +17,7 @@ Status: Draft for human review. Do not implement until approved.
 
 ## Phase 2: Backend models.dev Sync
 
-- [ ] Task 2: Add models.dev price fetch and parse helpers
+- [x] Task 2: Add models.dev price fetch and parse helpers
   - Acceptance: parser validates provider/model IDs and numeric costs; maps `input -> prompt`, `output -> completion`, `cache_read -> cache`; missing `cache_read` maps to `input / 10`; tests do not call live models.dev.
   - Verify: `go test ./internal/httpapi`
   - Dependencies: Task 1
