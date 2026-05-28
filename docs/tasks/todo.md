@@ -1,72 +1,76 @@
-# Task List: Monitoring Charts Account Dimension Adjustment
+# Task List: Model Price Sync Source Selection And Field Labels
 
 Status: Draft for human review. Do not implement until approved.
 
-## Phase 1: Backend Contract
+## Phase 1: Backend Contract And Embedded Source
 
-- [x] Task 1: Switch chart API contract to account
-  - Acceptance: `account` query parsing works; chart response has `filters.account`, `options.accounts`, and `byAccount`; empty responses include empty account options/series; route tests pass account through to store.
-  - Verify: `go test ./internal/usage ./internal/httpapi`
+- [ ] Task 1: Extend model price sync request contract
+  - Acceptance: `source: "embedded"` and provider/model targets are accepted; missing source defaults to `embedded`; embedded returns stored prices with `imported = 0`, `skipped = 0`; invalid source returns bad request.
+  - Verify: `go test ./internal/httpapi`
   - Dependencies: None
-  - Files: `internal/usage/charts.go`, `internal/httpapi/info.go`, `internal/httpapi/info_test.go`, optional `internal/usage/charts_test.go`
+  - Files: `internal/httpapi/info.go`, `internal/httpapi/info_test.go`
 
 ## Checkpoint: Backend Contract
 
-- [x] Endpoint path remains `/v0/management/usage/charts`.
-- [x] Empty store response remains valid.
-- [x] Focused backend contract tests pass.
+- [ ] Existing empty-body sync clients still work.
+- [ ] Route contract can carry provider/model targets.
 
-## Phase 2: Backend Data Path
+## Phase 2: Backend models.dev Sync
 
-- [x] Task 2: Aggregate account series from usage events
-  - Acceptance: store returns account options and `byAccount.series`; account filter constrains global/account/caller-key/model series; caller-key/model behavior, cost, TPM, and missing-price behavior are preserved.
-  - Verify: `go test ./internal/store` and `go test ./internal/usage ./internal/store ./internal/httpapi`
+- [ ] Task 2: Add models.dev price fetch and parse helpers
+  - Acceptance: parser validates provider/model IDs and numeric costs; maps `input -> prompt`, `output -> completion`, `cache_read -> cache`; missing `cache_read` maps to `input / 10`; tests do not call live models.dev.
+  - Verify: `go test ./internal/httpapi`
   - Dependencies: Task 1
-  - Files: `internal/store/usage_charts.go`, `internal/store/usage_charts_test.go`
+  - Files: `internal/httpapi/info.go` or helper file, `internal/httpapi/info_test.go` or focused test file
 
-## Checkpoint: Backend Data Path
+- [ ] Task 3: Match and import models.dev prices
+  - Acceptance: matching uses provider+model; Codex and `gpt-*` normalize to OpenAI; imported prices include `source = "model.dev"`; skipped/unrequested models preserve existing prices; imported/skipped counts are accurate.
+  - Verify: `go test ./internal/httpapi ./internal/store`
+  - Dependencies: Task 2
+  - Files: `internal/httpapi/info.go` or helper file, `internal/httpapi/info_test.go` or focused test file, optional `internal/store/store.go`
 
-- [x] Account series tests cover account snapshot and auth label/file snapshot fallback.
-- [x] Provider series/options expectations are removed from chart store tests.
-- [x] Backend focused tests pass.
+## Checkpoint: Backend Sync
 
-## Phase 3: Frontend Query And Rendering
+- [ ] `embedded` and `model.dev` source paths are both tested.
+- [ ] Unit tests make no live network calls.
+- [ ] Manual prices are preserved for skipped/unrequested models.
 
-- [x] Task 3: Update frontend chart types and filter query path
-  - Acceptance: frontend chart query params use `account`; response types use `options.accounts` and `byAccount`; dimension type is `global | account | apiKey | model`; filter tests cover account inclusion/omission.
-  - Verify: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts`
+## Phase 3: Frontend API And Sync Flow
+
+- [ ] Task 4: Update frontend sync types and hook signature
+  - Acceptance: frontend has `ModelPriceSyncSource`; sync targets include provider/model; API sends `{ source, models }`; hook exposes new signature without unrelated behavior changes.
+  - Verify: `npm --prefix web run type-check`
   - Dependencies: Task 1
-  - Files: `web/src/services/api/usageService.ts`, `web/src/features/monitoring/charts/filters.ts`, `web/src/features/monitoring/charts/filters.test.ts`
+  - Files: `web/src/services/api/usageService.ts`, `web/src/features/monitoring/hooks/useUsageData.ts`
 
-- [x] Task 4: Render account dimension and account filter in chart page
-  - Acceptance: provider select is gone; account select appears except when account is active dimension; account dimension renders account series; caller-key/model dimensions still work.
-  - Verify: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`
-  - Dependencies: Task 3
-  - Files: `web/src/pages/MonitoringChartsPage.tsx`, `web/src/pages/MonitoringChartsPage.test.tsx`
-
-- [x] Task 5: Update chart labels and remove provider copy
-  - Acceptance: English chart labels use `Account` and `Caller key`; Simplified Chinese chart labels use `账号` and `调用方密钥`; Traditional Chinese and Russian chart labels are updated consistently; page tests no longer depend on stale provider/API-key labels.
-  - Verify: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx` and `npm --prefix web run type-check`
+- [ ] Task 5: Add source selection modal to request monitoring
+  - Acceptance: one-click sync opens source modal before API call; modal lists `embedded` and `model.dev`; confirming sync sends selected source and targets; notifications remain clear.
+  - Verify: `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests are practical; `npm --prefix web run type-check`
   - Dependencies: Task 4
-  - Files: `web/src/i18n/locales/en.json`, `web/src/i18n/locales/zh-CN.json`, `web/src/i18n/locales/zh-TW.json`, `web/src/i18n/locales/ru.json`, optional `web/src/pages/MonitoringChartsPage.test.tsx`
+  - Files: `web/src/pages/MonitoringCenterPage.tsx`, optional `web/src/pages/MonitoringCenterPage.test.tsx`
 
-## Checkpoint: Frontend Chart UI
+- [ ] Task 6: Rename price labels in UI locales
+  - Acceptance: zh-CN uses `输入价格`, `输出价格`, `输入缓存价格`; English uses `Input price`, `Output price`, `Input cache price`; zh-TW and ru avoid stale prompt/completion wording; UI still has exactly three price fields.
+  - Verify: `npm --prefix web run type-check`; `npm --prefix web run lint`
+  - Dependencies: None, should land with Task 5
+  - Files: `web/src/i18n/locales/en.json`, `web/src/i18n/locales/zh-CN.json`, `web/src/i18n/locales/zh-TW.json`, `web/src/i18n/locales/ru.json`
 
-- [x] No provider chart dimension or filter appears in tests.
-- [x] Account, caller-key, and model filters hide correctly when active.
-- [x] Caller-key wording appears in chart controls and related chart copy.
-- [x] Focused frontend tests and type check pass.
+## Checkpoint: Frontend UI
+
+- [ ] Price labels are clear in the model price modal.
+- [ ] Sync source selection is required before sync starts.
+- [ ] Frontend type check passes.
 
 ## Phase 4: Final Verification
 
-- [x] Task 6: Run final checks and review diff
-  - Acceptance: focused backend tests pass; focused frontend tests pass; type check passes; lint passes if frontend files changed; generated static asset is not touched unless approved and rebuilt via `npm --prefix web run build`.
-  - Verify: `go test ./internal/usage ./internal/store ./internal/httpapi`; `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx`; `npm --prefix web run type-check`; `npm --prefix web run lint`; `go test ./...` if full backend verification is needed.
-  - Dependencies: Tasks 1-5
-  - Files: None unless generated asset rebuild is approved
+- [ ] Task 7: Run final checks and review diff
+  - Acceptance: focused backend tests pass; frontend type check passes; lint passes if frontend files changed; relevant frontend tests pass if added/updated; generated static asset is not touched unless rebuilt through `npm --prefix web run build`.
+  - Verify: `go test ./internal/httpapi ./internal/store`; `npm --prefix web run type-check`; `npm --prefix web run lint`; `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests exist; `go test ./...` if warranted.
+  - Dependencies: Tasks 1-6
+  - Files: None unless verification exposes a defect
 
 ## Checkpoint: Complete
 
-- [x] All `docs/SPEC.md` acceptance criteria are satisfied.
-- [x] No unrelated monitoring, quota, Codex inspection, packaging, or config code was changed.
+- [ ] All `docs/SPEC.md` acceptance criteria are satisfied.
+- [ ] No unrelated monitoring charts, quota panels, config merging, packaging, or Windows script code was changed.
 - [ ] Human review approves the completed implementation.

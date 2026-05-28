@@ -1,70 +1,86 @@
-# Spec: Monitoring Charts Account Dimension Adjustment
+# Spec: Model Price Sync Source Selection And Field Labels
 
-Status: Spec corrected; implementation not started.
-
-## Confirmed Assumptions
-
-- This is a modification to the existing monitoring charts page, not a new page.
-- Target users are backend administrators using the CPA-PC management UI.
-- "账号" should match the request monitoring page concept. The fallback order is: current auth-file metadata account/email/label, event account snapshot, current auth label or event auth label/file snapshot, source display name, auth index. If a row still lacks an account, request monitoring groups by auth label or source as a final display fallback. Provider is not part of the account fallback.
-- "API key" is a user-facing naming issue. UI copy should say "调用方密钥" / "Caller key", while existing technical identifiers such as `apiKeyHash` may remain unless implementation proves a rename is necessary.
-- Unit tests are required for changed behavior. Full integration testing is out of scope for this spec unless requested later.
+Status: Spec confirmed by user. Implementation planning not started.
 
 ## Objective
 
-Adjust the existing monitoring charts feature so administrators can analyze usage by account rather than provider.
+Improve the model pricing settings in the request monitoring page so administrators can understand pricing fields correctly and choose how one-click price sync resolves model prices.
+
+Target users:
+
+- CPA-PC management UI administrators who review request monitoring costs.
+- Administrators maintaining local model prices for cost estimates by account, model, caller key, and live request rows.
 
 What changes:
 
-- Remove provider from chart dimensions.
-- Remove provider from chart filters.
-- Add account to chart dimensions.
-- Add account to chart filters.
-- Rename user-facing API key labels on the chart page to "调用方密钥" in Chinese and "Caller key" or equivalent in English.
+- Rename the three visible model price fields from prompt/completion/cache terminology to input/output/input-cache terminology.
+- Keep exactly three price fields: input price, output price, and input cache price.
+- Add a second modal after clicking one-click sync so the user chooses the sync source.
+- Allow the user to choose `embedded` or `model.dev` as the sync source.
+- For `model.dev`, match prices by provider plus model.
+- Treat Codex-sourced requests and `gpt-*` model IDs as OpenAI provider matches for `model.dev` pricing.
 
 What stays the same:
 
-- Existing `/monitoring/charts` route.
-- Existing chart metric families: token usage, cumulative token usage, cost, cumulative cost, and TPM.
-- Existing fixed ranges and linked granularity rules: `1h` -> `10m`, `5h` and `24h` -> `hour`, `7d` -> `day`.
-- Existing model dimension and model filter.
-- Existing caller key grouping by API-key hash and alias.
+- Existing request monitoring page and price settings modal remain the entry point.
+- Existing `/v0/management/model-prices` endpoint remains the manual save/load endpoint.
+- Existing `/v0/management/model-prices/sync` endpoint remains the one-click sync endpoint.
+- Existing persisted price fields remain `prompt`, `completion`, and `cache` unless implementation proves a schema change is required and it is approved separately.
+- Existing cost formula remains three-way: non-cached input, cached input, output.
+- No output-cache price field is added.
+
+Field meaning:
+
+| UI label | Existing API/storage field | Meaning | Cost source |
+| --- | --- | --- | --- |
+| Input price / 输入价格 | `prompt` | Non-cached input token price per 1M tokens | `input_tokens - cached_tokens` |
+| Output price / 输出价格 | `completion` | Output token price per 1M tokens | `output_tokens` |
+| Input cache price / 输入缓存价格 | `cache` | Cached input token price per 1M tokens | `cached_tokens` / `cache_tokens` |
 
 Acceptance criteria:
 
-- Chart dimension options are exactly global total, account, caller key, and model. Provider is not visible.
-- Filter controls include account, caller key, and model. Provider is not visible.
-- Selecting account as the chart dimension hides and omits the account filter, matching the current rule for filters that are already used as the active dimension.
-- Selecting caller key as the chart dimension hides and omits the caller-key filter.
-- Selecting model as the chart dimension hides and omits the model filter.
-- Account options and account series labels are consistent with request monitoring account labels wherever persisted data allows.
-- Backend chart data groups account series by stable account identity, not by provider.
-- Backend chart filtering supports account filtering and no longer depends on provider filtering for the chart UI.
-- User-facing chart copy no longer says "Provider" or "提供方" for dimensions or filters.
-- User-facing chart copy no longer says "API key" / "API Key" for this page where it refers to the caller's key; it says "Caller key" / "调用方密钥" instead.
-- Relevant frontend and backend unit tests pass.
+- Chinese UI no longer says `提示价格`, `补全价格`, or generic `缓存价格` in the model price settings UI.
+- English UI no longer says `Prompt price`, `Completion price`, or generic `Cache price` in the model price settings UI.
+- The price editor and saved-price table show exactly three price columns: input, output, and input cache.
+- Clicking one-click sync opens a secondary modal instead of immediately calling the sync API.
+- The secondary modal has source choices for `embedded` and `model.dev`.
+- Choosing `embedded` preserves the current embedded sync behavior unless an embedded price source is added in a later approved change.
+- Choosing `model.dev` fetches pricing from the public models.dev API and imports matching prices into local SQLite.
+- `model.dev` matching uses provider plus model, not model-only matching, except for the explicitly approved OpenAI inference rules.
+- If a models.dev model has `cost.input` and `cost.output` but no `cost.cache_read`, the imported input cache price defaults to one tenth of the input price.
+- Codex provider/source rows match against the OpenAI provider in models.dev.
+- Any model whose ID starts with `gpt-` matches against the OpenAI provider in models.dev even if its source/provider metadata is missing or Codex-like.
+- Synced prices update request monitoring cost estimates after the sync result is loaded.
+- Unmatched models do not delete existing manual prices.
+- Sync results report imported and skipped counts clearly.
 
 ## Tech Stack
 
 - Backend: Go `1.26.0`, Gin, embedded CLIProxyAPI SDK, `modernc.org/sqlite`.
 - Storage: existing local SQLite database opened by `internal/store`; no external database or service.
 - Frontend: React `19.2.1`, TypeScript `5.9.3`, Vite `8.0.10`, SCSS modules, Vitest `4.1.5`.
-- Charts: existing direct `echarts` dependency.
+- HTTP pricing source: standard Go `net/http`; no new dependency should be added for fetching `https://models.dev/api.json`.
 - Routing: existing hash-router management UI; do not switch to browser-router URLs.
 - Packaging asset: `static/management.html` is generated from `web/`; do not edit it by hand.
 
 ## Commands
 
-Focused backend unit tests:
+Focused backend tests for model price routes and store behavior:
 
 ```powershell
-go test ./internal/usage ./internal/store ./internal/httpapi
+go test ./internal/httpapi ./internal/store
 ```
 
-Focused frontend unit tests:
+Full backend tests when sync parsing or route contracts change:
 
 ```powershell
-npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx
+go test ./...
+```
+
+Focused frontend tests if page or helper tests are added or changed:
+
+```powershell
+npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx
 ```
 
 Frontend type check:
@@ -79,13 +95,7 @@ Frontend lint:
 npm --prefix web run lint
 ```
 
-Full backend test suite when backend chart contract changes:
-
-```powershell
-go test ./...
-```
-
-Frontend production build if UI labels or generated static assets need verification:
+Frontend production build if generated management asset verification is required:
 
 ```powershell
 npm --prefix web run build
@@ -97,187 +107,168 @@ Local app run for manual smoke testing:
 go run ./cmd/cpa-pc -config .\config.example.yaml
 ```
 
-Frontend dev server for manual UI inspection:
-
-```powershell
-npm --prefix web run dev
-```
-
 ## Project Structure
 
-Relevant existing files:
+Relevant files:
 
 ```text
-docs/SPEC.md                                      -> this draft feature spec
-docs/specs/2026-05-25-cpa-pc-request-monitoring-charts.md
-                                                  -> existing implemented chart feature record
-internal/usage/charts.go                          -> chart query, response structs, validation, empty response
-internal/store/usage_charts.go                    -> SQLite-backed chart aggregation and filter handling
-internal/store/usage_charts_test.go               -> backend chart aggregation unit tests
-internal/httpapi/info.go                          -> management chart route registration
-internal/httpapi/info_test.go                     -> chart route/auth/query unit tests
-web/src/pages/MonitoringChartsPage.tsx            -> chart page controls, labels, dimensions, chart rendering
-web/src/pages/MonitoringChartsPage.test.tsx       -> page-level chart behavior tests
-web/src/features/monitoring/charts/filters.ts     -> chart dimension/filter state and query-param builder
-web/src/features/monitoring/charts/filters.test.ts
-                                                  -> filter and dimension unit tests
-web/src/features/monitoring/charts/chartOptions.ts
-                                                  -> chart series option generation
-web/src/features/monitoring/charts/useUsageCharts.ts
-                                                  -> chart data loading hook
-web/src/services/api/usageService.ts              -> frontend chart API types/client
-web/src/pages/MonitoringCenterPage.tsx            -> request monitoring account/caller-key naming reference
-web/src/features/monitoring/hooks/useMonitoringData.ts
-                                                  -> request monitoring account identity/display reference
-web/src/i18n/locales/en.json                      -> English chart labels
-web/src/i18n/locales/zh-CN.json                   -> Simplified Chinese chart labels
-web/src/i18n/locales/zh-TW.json                   -> Traditional Chinese chart labels
-web/src/i18n/locales/ru.json                      -> Russian chart labels
+docs/SPEC.md                                      -> this active feature spec
+internal/httpapi/info.go                          -> management routes, including model price sync
+internal/httpapi/info_test.go                     -> route/auth/sync tests
+internal/store/store.go                           -> ModelPrice shape and SQLite persistence
+internal/store/store_test.go                      -> model price persistence tests
+internal/store/usage_charts.go                    -> backend chart cost formula
+web/src/pages/MonitoringCenterPage.tsx            -> request monitoring price modal and sync flow
+web/src/features/monitoring/hooks/useUsageData.ts -> model price load/save/sync hook
+web/src/services/api/usageService.ts              -> frontend usage-service API types/client
+web/src/utils/usage.ts                            -> ModelPrice type and frontend cost formula
+web/src/i18n/locales/en.json                      -> English price labels
+web/src/i18n/locales/zh-CN.json                   -> Simplified Chinese price labels
+web/src/i18n/locales/zh-TW.json                   -> Traditional Chinese price labels
+web/src/i18n/locales/ru.json                      -> Russian price labels
 ```
 
 Expected implementation scope:
 
-- Update chart query/response structures from provider-oriented options and series to account-oriented options and series.
-- Update SQLite aggregation to build account options and account series from usage event account/auth snapshots.
-- Update frontend filter state and query building to use account instead of provider.
-- Update chart page labels, option mapping, active dimension resolution, and tests.
-- Update i18n labels for the chart page.
-- Avoid unrelated request monitoring page refactors.
+- Update user-facing labels for the three existing price fields.
+- Extend frontend sync flow to collect provider/model targets and ask the user for a source.
+- Extend sync request/response types to include source selection and skipped/imported details if needed.
+- Implement a backend `model.dev` sync source that fetches models.dev data, matches provider+model targets, maps prices, and saves imported prices.
+- Preserve existing manual price persistence and cost calculation semantics.
 
 ## Code Style
 
-Backend code should keep query validation in `internal/usage`, SQL aggregation in `internal/store`, and route concerns in `internal/httpapi`.
+Backend route code should keep request parsing, source dispatch, and external response parsing small and testable. External API responses must be treated as untrusted data.
 
-Example Go style:
+Example Go shape:
 
 ```go
-type ChartQuery struct {
-	Range       ChartRange
-	Granularity ChartGranularity
-	Account     string
-	APIKeyHash  string
-	Model       string
-	NowMS       int64
+type modelPriceSyncRequest struct {
+	Source string                 `json:"source"`
+	Models []modelPriceSyncTarget `json:"models"`
 }
 
-func NormalizeChartQuery(query ChartQuery) (ChartQuery, error) {
-	if query.Range == "" {
-		query.Range = ChartRange1H
-	}
-	if !validChartRange(query.Range) {
-		return ChartQuery{}, errors.New("invalid chart range")
-	}
+type modelPriceSyncTarget struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
 
-	query.Granularity = defaultChartGranularity(query.Range)
-	query.Account = strings.TrimSpace(query.Account)
-	query.APIKeyHash = strings.ToLower(strings.TrimSpace(query.APIKeyHash))
-	query.Model = strings.TrimSpace(query.Model)
-	return query, nil
+func normalizePricingProvider(provider string, model string) string {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	model = strings.ToLower(strings.TrimSpace(model))
+	if provider == "codex" || strings.HasPrefix(model, "gpt-") {
+		return "openai"
+	}
+	return provider
 }
 ```
 
-Frontend code should keep dimension/filter transformations in pure helpers and keep the page component focused on rendering state.
+Frontend code should keep the sync modal state explicit and avoid hiding side effects inside render helpers.
 
-Example TypeScript style:
+Example TypeScript shape:
 
 ```ts
-export type UsageChartsDimension = 'global' | 'account' | 'apiKey' | 'model';
+type ModelPriceSyncSource = 'embedded' | 'model.dev';
 
-export type UsageChartsFilterState = {
-  range: UsageChartsRange;
-  dimension: UsageChartsDimension;
-  account: string;
-  apiKeyHash: string;
+type ModelPriceSyncTarget = {
+  provider: string;
   model: string;
 };
 
-export function buildUsageChartsQueryParams(state: UsageChartsFilterState): UsageChartsQueryParams {
-  const params: UsageChartsQueryParams = {
-    range: state.range,
-    granularity: resolveDefaultUsageChartsGranularity(state.range),
-  };
-
-  if (!shouldDisableUsageChartsFilter('account', state.dimension)) {
-    appendNonEmptyParam(params, 'account', state.account);
-  }
-  if (!shouldDisableUsageChartsFilter('apiKey', state.dimension)) {
-    appendNonEmptyParam(params, 'apiKeyHash', state.apiKeyHash);
-  }
-  if (!shouldDisableUsageChartsFilter('model', state.dimension)) {
-    appendNonEmptyParam(params, 'model', state.model);
-  }
-  return params;
-}
+const modelPriceColumns = [
+  'model_price_input',
+  'model_price_output',
+  'model_price_input_cache',
+] as const;
 ```
 
 Style conventions:
 
-- Prefer the smallest direct change that satisfies the spec.
-- Keep user-facing terminology in i18n files, not hard-coded in components except existing test defaults.
-- Use camelCase for frontend API types and JSON response fields.
-- Keep SQL parameterized; never interpolate filter values into SQL strings.
-- Do not introduce new abstractions for one-off label changes.
+- Prefer minimal changes over broad refactors.
+- Keep persisted JSON fields camelCase where new frontend-facing fields are required.
+- Keep existing `prompt`, `completion`, and `cache` field names internally unless explicitly approved to migrate them.
+- Keep SQL parameterized; never interpolate model names or providers into SQL strings.
+- Keep user-facing text in i18n files.
+- Do not introduce abstractions for future price sources beyond the two requested choices.
 
 ## Testing Strategy
 
 Backend unit tests:
 
-- `internal/usage/charts.go`: parsing and normalization should accept `account`, reject invalid range/granularity, and no longer require provider logic for chart filters.
-- `internal/store/usage_charts_test.go`: chart aggregation should produce account options and `byAccount` series; account filters should constrain global, account, caller-key, and model series; provider-only expectations should be removed or replaced.
-- `internal/httpapi/info_test.go`: `/v0/management/usage/charts` should pass account query params through to the store and continue returning authorized responses and HTTP 400 for invalid queries.
+- Route tests for `POST /v0/management/model-prices/sync` with `source: "embedded"` preserve current stored-price behavior.
+- Route or helper tests for `source: "model.dev"` use an injected test HTTP server or injectable fetcher; tests must not call the live models.dev network endpoint.
+- Parser tests cover models.dev pricing fields: `cost.input`, `cost.output`, and `cost.cache_read`.
+- Mapping tests cover `input -> prompt`, `output -> completion`, `cache_read -> cache`, and missing `cache_read -> input / 10`.
+- Matching tests cover provider+model exact matches, Codex-to-OpenAI provider normalization, and `gpt-*` model-to-OpenAI fallback.
+- Sync tests prove unmatched models are skipped and existing prices are preserved.
 
-Frontend unit tests:
+Frontend tests:
 
-- `web/src/features/monitoring/charts/filters.test.ts`: dimensions should include account and exclude provider; query params should include account and omit it when account is the active dimension.
-- `web/src/pages/MonitoringChartsPage.test.tsx`: the page should render account and caller-key labels, hide the active-dimension filter, and switch chart panels to account/caller-key/model series.
-- Existing chart option tests should continue to pass without provider-specific assumptions.
+- Price label tests or snapshots prove the UI uses input/output/input-cache terminology.
+- Sync flow tests prove clicking one-click sync opens the source selection modal before making the API request.
+- API client or hook tests prove selected source and provider/model targets are sent to the sync endpoint if such tests already fit the existing test setup.
+
+Manual smoke checks:
+
+- Open request monitoring, open model price settings, verify the three labels.
+- Click one-click sync, verify the secondary modal appears.
+- Choose `embedded`, verify current behavior and notification remain coherent.
+- Choose `model.dev` with known OpenAI/Codex/GPT models, verify imported count and saved prices update.
 
 Verification expectations:
 
-- Run focused backend and frontend unit tests after implementation.
-- Run `npm --prefix web run type-check` because chart API types are likely to change.
+- Run focused backend tests after backend route or sync changes.
+- Run frontend type check after TypeScript API or component changes.
 - Run lint if frontend files are changed.
-- Run `go test ./...` if the backend response contract is changed beyond local chart structs.
+- Run `npm --prefix web run build` only if updating the generated `static/management.html` is explicitly required.
 
 ## Boundaries
 
 Always do:
 
-- Keep the app as a single-process CPA-PC app with embedded CLIProxyAPI SDK.
-- Preserve existing `/monitoring/charts` route and existing chart metric behavior unless directly required by this spec.
-- Match request monitoring terminology for account and caller key.
-- Keep chart SQL read-only and parameterized.
-- Add or update unit tests for behavior changed by this spec.
-- Rebuild `static/management.html` only through `npm --prefix web run build` when a generated asset update is required.
+- Preserve the single-process CPA-PC app with embedded CLIProxyAPI SDK.
+- Keep model pricing stored locally in SQLite when the usage store is available.
+- Keep management authorization on model price endpoints.
+- Treat models.dev responses as untrusted external data and validate fields before using them.
+- Preserve manual prices for models that a sync source cannot match.
+- Keep the cost formula consistent between frontend request monitoring and backend charts.
+- Use i18n keys for all new user-facing labels.
+- Use tests for provider/model normalization and price mapping.
 
 Ask first:
 
-- Changing the public endpoint path away from `/v0/management/usage/charts`.
-- Adding dependencies.
-- Adding or changing persistent database schema.
-- Changing request monitoring page behavior beyond using it as a terminology/reference source.
-- Adding backward compatibility fields for provider if an external consumer is discovered.
-- Changing chart metrics, time ranges, granularity, or pricing formulas.
+- Renaming persisted `prompt`, `completion`, or `cache` fields.
+- Adding a fourth price field such as output cache or cache write.
+- Adding database schema migrations for model prices.
+- Adding new third-party dependencies.
+- Adding scheduled/background automatic price sync.
+- Adding broad provider alias rules beyond the requested Codex/OpenAI and `gpt-*` behavior.
+- Calling models.dev directly from the browser instead of the backend.
+- Rebuilding and committing `static/management.html`.
 
 Never do:
 
-- Reintroduce a separate `CLIProxyAPI.exe` launcher.
 - Edit `static/management.html` by hand.
-- Add external collectors, queues, databases, or services for usage data.
-- Remove or weaken management authorization.
-- Commit secrets or real API keys.
-- Refactor unrelated monitoring tables, quota panels, Codex inspection logic, packaging scripts, or config merging.
+- Remove or weaken management authentication.
+- Delete existing manual model prices just because a sync source cannot match them.
+- Make live network calls in unit tests.
+- Store secrets, API keys, or request payloads from external services in logs.
+- Reintroduce a separate `CLIProxyAPI.exe` launcher.
+- Refactor unrelated monitoring charts, quota panels, config merging, packaging scripts, or Windows management scripts.
 
 ## Success Criteria
 
-- Administrators can use the monitoring charts page without seeing provider as a dimension or filter.
-- Administrators can choose account as a chart dimension and filter, with labels consistent with request monitoring where data is available.
-- Administrators see caller-key terminology instead of API-key terminology on this chart page.
-- Existing chart metrics still render for global, account, caller-key, and model dimensions.
-- Focused unit tests for changed backend and frontend behavior pass.
+- Administrators see clear input/output/input-cache price labels instead of prompt/completion/cache wording.
+- The one-click sync action is gated by a source selection modal.
+- `embedded` remains available as a selectable source.
+- `model.dev` sync imports prices from models.dev into local model prices.
+- `model.dev` sync matches prices using provider+model and the requested OpenAI special cases.
+- Missing models.dev `cost.cache_read` values import as one tenth of `cost.input`.
+- Existing cost estimates continue to use exactly three price values.
+- Focused backend tests, relevant frontend tests, type check, and lint pass for changed areas.
 
 ## Resolved Decisions
 
-- Account labels and grouping should follow the request monitoring page logic: current auth-file metadata account/email/label, event account snapshot, current auth label or event auth label/file snapshot, source display name, auth index, then auth label/source as final row grouping fallback.
-- Provider should not be used as the account fallback.
-- English UI should use "Caller key" and Chinese UI should use "调用方密钥".
+1. The UI source label should be `model.dev`; the implementation may fetch `https://models.dev/api.json`.
+2. If models.dev has `cost.input` and `cost.output` but no `cost.cache_read`, input cache price defaults to `cost.input / 10`.
+3. `embedded` remains visible and keeps the current behavior of returning existing stored prices with `imported = 0` unless a real embedded price table is approved later.

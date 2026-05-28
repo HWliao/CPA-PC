@@ -1,234 +1,253 @@
-# Implementation Plan: Monitoring Charts Account Dimension Adjustment
+# Implementation Plan: Model Price Sync Source Selection And Field Labels
 
-Status: Draft for human review. No implementation has started.
+Status: Draft for human review. Implementation not started.
 
 Source spec: `docs/SPEC.md`
 
 ## Overview
 
-Adjust the existing `/monitoring/charts` feature so chart dimensions and filters use account instead of provider, while caller-key terminology replaces user-facing API-key wording on the chart page. The work changes the chart API contract, SQLite aggregation, frontend API types, chart filter state, page rendering, labels, and unit tests. Request monitoring behavior is used as the account semantics reference but should not be refactored.
+Update request monitoring model pricing so the UI presents three clear price fields, and one-click sync asks the administrator to choose `embedded` or `model.dev`. The backend keeps the existing model price persistence shape while adding source-aware sync behavior. `model.dev` sync fetches models.dev pricing server-side, matches by provider plus model, applies approved OpenAI fallback rules, maps models.dev costs into the existing three price fields, and preserves unmatched/manual prices.
 
 ## Architecture Decisions
 
-- Replace chart provider contract fields with account-oriented fields for this feature rather than adding compatibility aliases, unless an external consumer is discovered and approved.
-- Keep existing chart endpoint path: `GET /v0/management/usage/charts`.
-- Keep existing chart metrics, ranges, granularity, pricing formulas, and chart rendering mechanics unchanged.
-- Keep technical caller-key identifiers such as `apiKeyHash`; only user-facing chart labels change to `Caller key` and `调用方密钥`.
-- Match request monitoring account semantics where the chart data path can support it: auth-file metadata account/email/label when available, then event account snapshot, auth label/file snapshot, source display name, auth index, then auth label/source grouping fallback. Provider must not be an account fallback.
-- Do not add dependencies, database schema changes, new services, or request monitoring refactors.
+- Keep the existing persisted `ModelPrice` fields: `prompt`, `completion`, and `cache`.
+- Treat the new labels as UI terminology only: input price, output price, input cache price.
+- Keep `POST /v0/management/model-prices/sync` as the sync endpoint and extend its request body with source and provider/model targets.
+- Keep `embedded` as a selectable source that returns currently stored prices with `imported = 0` until a real embedded price table is approved.
+- Implement `model.dev` fetching in the backend, not the browser.
+- Use standard Go `net/http`; do not add a dependency for external fetching.
+- Match models.dev by normalized provider plus model.
+- Normalize Codex provider/source and `gpt-*` model IDs to OpenAI for matching.
+- Map models.dev `cost.input` to `prompt`, `cost.output` to `completion`, and `cost.cache_read` to `cache`.
+- If `cost.cache_read` is absent, set `cache` to `cost.input / 10`.
+- Preserve existing prices for unmatched models and for models not included in a sync request.
 
 ## Dependency Graph
 
 ```text
 docs/SPEC.md
-  -> Backend chart contract in internal/usage/charts.go
-    -> HTTP route query parsing in internal/httpapi/info.go
-      -> Store aggregation in internal/store/usage_charts.go
-        -> Frontend API types/client in web/src/services/api/usageService.ts
-          -> Frontend chart filter helpers in web/src/features/monitoring/charts/filters.ts
-            -> MonitoringChartsPage controls and series selection
-              -> i18n labels and page tests
+  -> Backend sync request/response contract in internal/httpapi/info.go
+    -> models.dev price fetch/parse/match helpers
+      -> backend route tests in internal/httpapi/info_test.go
+        -> frontend API types in web/src/services/api/usageService.ts
+          -> usage data hook sync signature in web/src/features/monitoring/hooks/useUsageData.ts
+            -> MonitoringCenterPage sync modal and provider/model target collection
+              -> i18n labels and focused frontend tests
 ```
 
-Cross-reference dependency:
+Cross-reference dependencies:
 
 ```text
-web/src/features/monitoring/hooks/useMonitoringData.ts
-  -> account fallback semantics reference only
-  -> no planned request monitoring behavior change
+internal/store/store.go
+  -> ModelPrice persistence and validation remain unchanged unless tests expose a gap
+
+web/src/utils/usage.ts and internal/store/usage_charts.go
+  -> cost formula remains unchanged, but labels describe fields differently
 ```
 
 ## Task List
 
-### Phase 1: Backend Contract
+### Phase 1: Backend Contract And Embedded Source
 
-## Task 1: Switch Chart API Contract To Account
+## Task 1: Extend Model Price Sync Request Contract
 
-**Description:** Update the backend chart query and response contract so the route accepts `account`, exposes account filters/options/series, and no longer exposes provider as the chart dimension/filter contract.
+**Description:** Add a typed sync request body that accepts `source` and provider/model targets while preserving current `embedded` behavior.
 
 **Acceptance criteria:**
-- [ ] `usage.ParseChartQuery` reads `account` and no longer normalizes provider/auth-index filters for chart UI behavior.
-- [ ] `usage.ChartsResponse` exposes `filters.account`, `options.accounts`, and `byAccount`.
-- [ ] `usage.EmptyChartsResponse` returns empty account options and series.
-- [ ] Route tests prove `/v0/management/usage/charts?account=...&apiKeyHash=...&model=...` passes the account filter to the store.
+- [ ] `POST /v0/management/model-prices/sync` accepts `source: "embedded"` and `models: [{ provider, model }]`.
+- [ ] Missing source defaults to `embedded` for compatibility with current frontend calls.
+- [ ] `embedded` response still returns stored prices, `imported = 0`, and `skipped = 0`.
+- [ ] Invalid source returns a structured bad request error.
 
 **Verification:**
-- [ ] Tests pass: `go test ./internal/usage ./internal/httpapi`
+- [ ] `go test ./internal/httpapi`
 
 **Dependencies:** None
 
 **Files likely touched:**
-- `internal/usage/charts.go`
-- `internal/httpapi/info_test.go`
 - `internal/httpapi/info.go`
-- `internal/usage/charts_test.go` if focused parser tests are added
+- `internal/httpapi/info_test.go`
 
-**Estimated scope:** Medium, 3-4 files
+**Estimated scope:** Small, 2 files
 
 ### Checkpoint: Backend Contract
 
-- [ ] Human-readable contract matches `docs/SPEC.md`.
-- [ ] Route still uses `/v0/management/usage/charts`.
-- [ ] Empty store response remains valid.
-- [ ] Focused backend contract tests pass.
+- [ ] Existing sync clients still work with an empty request body.
+- [ ] The route contract can carry provider/model targets for later `model.dev` matching.
 
-### Phase 2: Backend Data Path
+### Phase 2: Backend models.dev Sync
 
-## Task 2: Aggregate Account Series From Usage Events
+## Task 2: Add models.dev Price Fetch And Parse Helpers
 
-**Description:** Replace provider aggregation in the SQLite chart store with account aggregation, preserving global, caller-key, model, cost, TPM, missing-price, and bucket behavior.
+**Description:** Implement backend helpers to fetch and parse `https://models.dev/api.json` into a provider/model pricing lookup.
 
 **Acceptance criteria:**
-- [ ] Store returns account options and `byAccount.series` using account fallback semantics available from usage events.
-- [ ] Account filtering constrains global buckets, account series, caller-key series, and model series.
-- [ ] Caller-key and model dimensions continue to work after provider removal.
-- [ ] Missing-price model reporting and cost calculation remain unchanged.
+- [ ] External response parsing validates provider IDs, model IDs, and numeric costs.
+- [ ] The parser maps `cost.input`, `cost.output`, and `cost.cache_read` into existing `ModelPrice` fields.
+- [ ] Missing `cost.cache_read` maps to `cost.input / 10`.
+- [ ] Unit tests use injected JSON or a test server; no test calls the live models.dev endpoint.
 
 **Verification:**
-- [ ] Tests pass: `go test ./internal/store`
-- [ ] Backend focused tests pass: `go test ./internal/usage ./internal/store ./internal/httpapi`
+- [ ] `go test ./internal/httpapi`
 
 **Dependencies:** Task 1
 
 **Files likely touched:**
-- `internal/store/usage_charts.go`
-- `internal/store/usage_charts_test.go`
+- `internal/httpapi/info.go` or a new small helper file under `internal/httpapi`
+- `internal/httpapi/info_test.go` or a new focused test file
 
-**Estimated scope:** Small, 2 files
+**Estimated scope:** Medium, 2-3 files
 
-### Checkpoint: Backend Data Path
+## Task 3: Match And Import models.dev Prices
 
-- [ ] Account series are populated from representative account snapshot and auth label/file snapshot rows.
-- [ ] No provider series/options remain in chart store tests.
-- [ ] Global totals match previous behavior for the same events.
-- [ ] Backend focused test command passes.
-
-### Phase 3: Frontend Query And Rendering
-
-## Task 3: Update Frontend Chart Types And Filter Query Path
-
-**Description:** Update frontend chart API types and pure filter helpers so account replaces provider and caller-key remains keyed by `apiKeyHash`.
+**Description:** Add `model.dev` sync source handling that matches request targets to parsed models.dev prices and saves imported prices without deleting unmatched/manual entries.
 
 **Acceptance criteria:**
-- [ ] `UsageChartsQueryParams` uses `account` instead of `provider`.
-- [ ] `UsageChartsResponse` uses `options.accounts` and `byAccount` instead of provider fields.
-- [ ] `UsageChartsDimension` is exactly `global | account | apiKey | model`.
-- [ ] Filter helper tests prove account is included in query params and omitted when account is the active dimension.
+- [ ] Matching uses normalized provider plus model.
+- [ ] Codex provider/source and `gpt-*` model IDs normalize to OpenAI.
+- [ ] Imported prices set `source = "model.dev"`, a source model identifier, and sync metadata when available in the existing model price shape.
+- [ ] Existing prices for unmatched targets remain unchanged.
+- [ ] Existing prices for models not included in the sync request remain unchanged.
+- [ ] Response `imported` and `skipped` counts reflect matched and unmatched requested targets.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts`
+- [ ] `go test ./internal/httpapi ./internal/store`
+
+**Dependencies:** Task 2
+
+**Files likely touched:**
+- `internal/httpapi/info.go` or helper file
+- `internal/httpapi/info_test.go` or focused test file
+- `internal/store/store.go` only if metadata preservation requires a minimal validation adjustment
+
+**Estimated scope:** Medium, 2-3 files
+
+### Checkpoint: Backend Sync
+
+- [ ] `embedded` and `model.dev` source paths are both tested.
+- [ ] No live network calls happen in unit tests.
+- [ ] Manual prices are preserved for skipped/unrequested models.
+
+### Phase 3: Frontend API And Sync Flow
+
+## Task 4: Update Frontend Sync Types And Hook Signature
+
+**Description:** Extend the frontend usage-service API client and monitoring hook so sync can send a selected source and provider/model targets.
+
+**Acceptance criteria:**
+- [ ] Frontend has a `ModelPriceSyncSource` type with `embedded | model.dev`.
+- [ ] Frontend sync targets include provider and model.
+- [ ] `usageServiceApi.syncModelPrices` sends `{ source, models }`.
+- [ ] `useUsageData.syncModelPrices` exposes the new signature without changing unrelated usage loading behavior.
+
+**Verification:**
+- [ ] `npm --prefix web run type-check`
 
 **Dependencies:** Task 1
 
 **Files likely touched:**
 - `web/src/services/api/usageService.ts`
-- `web/src/features/monitoring/charts/filters.ts`
-- `web/src/features/monitoring/charts/filters.test.ts`
-
-**Estimated scope:** Small, 3 files
-
-## Task 4: Render Account Dimension And Account Filter In Chart Page
-
-**Description:** Update `MonitoringChartsPage` so it displays account options, uses account series, hides the account filter when account is the active dimension, and still renders global, caller-key, and model charts.
-
-**Acceptance criteria:**
-- [ ] Provider select is removed from the chart page.
-- [ ] Account select appears when account is not the active dimension.
-- [ ] Account select is hidden and omitted from loader params when account is the active dimension.
-- [ ] Chart panels render account series when the account dimension is selected.
-- [ ] Caller-key and model dimensions still render their series.
-
-**Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/pages/MonitoringChartsPage.test.tsx`
-
-**Dependencies:** Task 3
-
-**Files likely touched:**
-- `web/src/pages/MonitoringChartsPage.tsx`
-- `web/src/pages/MonitoringChartsPage.test.tsx`
+- `web/src/features/monitoring/hooks/useUsageData.ts`
 
 **Estimated scope:** Small, 2 files
 
-## Task 5: Update Chart Labels And Remove Provider Copy
+## Task 5: Add Source Selection Modal To Request Monitoring
 
-**Description:** Update chart-specific locale strings so provider copy is no longer used for dimensions/filters and caller-key terminology is consistent.
+**Description:** Change one-click sync so it opens a secondary modal where the administrator chooses `embedded` or `model.dev`, then runs sync with provider/model targets.
 
 **Acceptance criteria:**
-- [ ] English chart labels use `Account` and `Caller key`.
-- [ ] Simplified Chinese chart labels use `账号` and `调用方密钥`.
-- [ ] Traditional Chinese and Russian locale chart labels are updated consistently instead of leaving stale provider/API-key wording.
-- [ ] Page tests do not depend on stale `Provider` or `API key` labels for chart controls.
+- [ ] Clicking one-click sync opens a source selection modal and does not immediately call the sync API.
+- [ ] Source modal lists `embedded` and `model.dev`.
+- [ ] Confirming a source calls sync once with selected source and collected targets.
+- [ ] Targets include model names and best available provider/source metadata.
+- [ ] Codex and `gpt-*` matching requirements are supported by backend normalization; frontend does not need broad provider alias logic.
+- [ ] Success and failure notifications remain clear.
 
 **Verification:**
-- [ ] Tests pass: `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx`
-- [ ] Type check passes: `npm --prefix web run type-check`
+- [ ] `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests are practical
+- [ ] `npm --prefix web run type-check`
 
 **Dependencies:** Task 4
+
+**Files likely touched:**
+- `web/src/pages/MonitoringCenterPage.tsx`
+- `web/src/pages/MonitoringCenterPage.test.tsx` if tests are added or updated
+
+**Estimated scope:** Medium, 1-2 files
+
+## Task 6: Rename Price Labels In UI Locales
+
+**Description:** Update model price labels from prompt/completion/cache wording to input/output/input-cache wording in supported locales.
+
+**Acceptance criteria:**
+- [ ] Simplified Chinese uses `输入价格`, `输出价格`, and `输入缓存价格`.
+- [ ] English uses `Input price`, `Output price`, and `Input cache price`.
+- [ ] Traditional Chinese and Russian are updated consistently enough to avoid stale prompt/completion wording.
+- [ ] The editor and saved-price table still show exactly three price fields.
+
+**Verification:**
+- [ ] `npm --prefix web run type-check`
+- [ ] `npm --prefix web run lint`
+
+**Dependencies:** None, but should land with Task 5 for coherent UI review
 
 **Files likely touched:**
 - `web/src/i18n/locales/en.json`
 - `web/src/i18n/locales/zh-CN.json`
 - `web/src/i18n/locales/zh-TW.json`
 - `web/src/i18n/locales/ru.json`
-- `web/src/pages/MonitoringChartsPage.test.tsx` if label assertions need final alignment
 
-**Estimated scope:** Medium, 4-5 files
+**Estimated scope:** Small, 4 files
 
-### Checkpoint: Frontend Chart UI
+### Checkpoint: Frontend UI
 
-- [ ] No provider chart dimension or filter appears in tests.
-- [ ] Account, caller-key, and model filters hide correctly when used as the active dimension.
-- [ ] Caller-key wording is visible in chart controls and related empty/series copy.
-- [ ] Focused frontend tests and type check pass.
+- [ ] Price field labels are clear in the model price modal.
+- [ ] Sync source selection is required before sync starts.
+- [ ] Frontend type check passes.
 
 ### Phase 4: Final Verification
 
-## Task 6: Run Final Checks And Review Diff
+## Task 7: Run Final Checks And Review Diff
 
-**Description:** Run the agreed verification commands, inspect the diff for accidental unrelated changes, and decide whether a generated static asset rebuild is required.
+**Description:** Run focused verification, inspect the diff for scope drift, and decide whether a generated static asset rebuild is needed.
 
 **Acceptance criteria:**
 - [ ] Focused backend tests pass.
-- [ ] Focused frontend tests pass.
 - [ ] Frontend type check passes.
 - [ ] Frontend lint passes if frontend files changed.
-- [ ] `static/management.html` is only updated through `npm --prefix web run build` if explicitly needed.
+- [ ] Relevant frontend tests pass if added or updated.
+- [ ] `static/management.html` is not touched unless explicitly rebuilt through the frontend build command.
 
 **Verification:**
-- [ ] `go test ./internal/usage ./internal/store ./internal/httpapi`
-- [ ] `npm --prefix web test -- src/features/monitoring/charts/filters.test.ts src/pages/MonitoringChartsPage.test.tsx`
+- [ ] `go test ./internal/httpapi ./internal/store`
 - [ ] `npm --prefix web run type-check`
 - [ ] `npm --prefix web run lint`
-- [ ] `go test ./...` if backend contract changes need full-suite verification
+- [ ] `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests exist
+- [ ] `go test ./...` if backend route or helper changes warrant full-suite verification
 
-**Dependencies:** Tasks 1-5
+**Dependencies:** Tasks 1-6
 
-**Files likely touched:** None unless generated asset rebuild is approved
+**Files likely touched:** None unless verification exposes a defect
 
 **Estimated scope:** Small, verification only
-
-### Checkpoint: Complete
-
-- [ ] All `docs/SPEC.md` acceptance criteria are satisfied.
-- [ ] No unrelated monitoring, quota, Codex inspection, packaging, or config code was changed.
-- [ ] Human review confirms the plan's scope was followed.
 
 ## Risks And Mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Chart backend may not have live auth-file metadata that request monitoring uses before snapshots. | Medium | Use persisted event snapshots and auth labels for chart account grouping; pause and ask before adding schema or passing auth-file metadata into chart aggregation. |
-| Removing provider response fields may break hidden consumers. | Medium | Follow the spec and do not add compatibility by default; ask first if external consumers are discovered. |
-| Locale updates may leave stale provider/API-key strings in non-primary locales. | Low | Search chart locale keys and update all locale files consistently. |
-| Frontend tests use label text and may become brittle after terminology changes. | Low | Update tests to assert intended account/caller-key behavior, not implementation details. |
+| Provider metadata may be incomplete in current monitoring rows. | Medium | Backend applies explicit OpenAI fallback for Codex and `gpt-*`; unmatched models are skipped without deleting existing prices. |
+| models.dev JSON shape may change. | Medium | Parse defensively and validate numeric fields before import. |
+| Live network dependency can make sync fail. | Medium | Return a clear sync failure error and leave existing prices unchanged. |
+| Adding source selection could make sync feel slower. | Low | Keep modal small and default/recommend the most likely source if UX allows. |
+| Locale changes might leave stale terminology in secondary copy. | Low | Search all model price label keys and update all supported locales. |
 
 ## Parallelization Opportunities
 
-- Tasks 1 and 2 must be sequential because store aggregation depends on the backend contract.
-- Task 3 can start after Task 1 and does not require Task 2 to be complete if the response contract is stable.
-- Task 5 can be prepared after Task 3 but should be finalized after Task 4 confirms exact labels used by the page.
-- Task 6 must be last.
+- Task 6 label updates can run independently of backend tasks.
+- Task 4 frontend API types can start after Task 1 contract is stable.
+- Tasks 2 and 3 are sequential because import depends on parsing/matching helpers.
+- Task 5 depends on Task 4 but can be reviewed separately from backend implementation with mocked hook behavior.
 
 ## Open Questions
 
-- None blocking for planning. During implementation, pause if exact request-monitoring account precedence requires live auth-file metadata unavailable to the chart store without broader architecture changes.
+- None currently blocking. User confirmed `model.dev` UI label, `cache_read` fallback as `input / 10`, and keeping `embedded` visible with current behavior.

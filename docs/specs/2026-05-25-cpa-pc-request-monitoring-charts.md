@@ -121,7 +121,8 @@ web/src/i18n/locales/*.json                     -> UI labels
 Expected new or changed files:
 
 ```text
-docs/SPEC.md                                    -> this approved feature spec
+docs/specs/2026-05-25-cpa-pc-request-monitoring-charts.md
+                                                -> this approved feature spec
 internal/usage/charts.go                        -> chart query/response structs and validation helpers
 internal/store/usage_charts.go                  -> read-only aggregate SQL over usage_events/model_prices
 internal/store/usage_charts_test.go             -> SQLite aggregation unit tests
