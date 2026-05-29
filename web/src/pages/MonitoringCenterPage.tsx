@@ -1912,7 +1912,7 @@ export function ModelPriceSyncSourceModal({
   onClose: () => void;
   onConfirm: (source: ModelPriceSyncSource) => void;
 }) {
-  const sourceSelectId = useId();
+  const sourceSelectLabelId = useId();
   const [selectedSource, setSelectedSource] = useState<ModelPriceSyncSource>('model.dev');
 
   return (
@@ -1925,20 +1925,16 @@ export function ModelPriceSyncSourceModal({
       closeDisabled={syncing}
     >
       <div className={styles.priceField}>
-        <label htmlFor={sourceSelectId}>{t('usage_stats.model_price_sync_source')}</label>
-        <select
-          id={sourceSelectId}
+        <span className={styles.priceFieldLabel} id={sourceSelectLabelId}>
+          {t('usage_stats.model_price_sync_source')}
+        </span>
+        <Select
           value={selectedSource}
-          onChange={(event) => setSelectedSource(event.target.value as ModelPriceSyncSource)}
-          aria-label={t('usage_stats.model_price_sync_source')}
+          options={MODEL_PRICE_SYNC_SOURCE_OPTIONS}
+          onChange={(value) => setSelectedSource(value as ModelPriceSyncSource)}
+          ariaLabelledBy={sourceSelectLabelId}
           disabled={syncing}
-        >
-          {MODEL_PRICE_SYNC_SOURCE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        />
       </div>
       <div className={styles.priceActionsBar}>
         <Button variant="secondary" size="sm" onClick={onClose} disabled={syncing}>

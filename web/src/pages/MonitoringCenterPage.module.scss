@@ -964,6 +964,7 @@
 
 .summaryLabel,
 .savedPricesHeader,
+.priceFieldLabel,
 .priceField label {
   color: var(--monitor-muted);
   font-size: 11px;
@@ -1110,8 +1111,7 @@
 }
 
 .priceField input,
-.priceField button,
-.priceField select {
+.priceField button {
   min-height: 44px;
 }
 

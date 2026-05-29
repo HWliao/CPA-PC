@@ -86,9 +86,9 @@ describe('MonitoringCenterPage account card', () => {
       />
     );
 
-    expect(html).toContain('embedded');
     expect(html).toContain('model.dev');
     expect(html).toContain('Confirm');
+    expect(html).not.toContain('<select');
   });
 
   it('prefers readable channel names in realtime source cells', () => {
