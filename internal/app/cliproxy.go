@@ -95,11 +95,7 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	proxyService := ProxyService(service)
 
 	if usageStore != nil {
-		writer := opts.Stdout
-		if writer == nil {
-			writer = os.Stdout
-		}
-		service.RegisterUsagePlugin(pcusage.NewPersistPlugin(usageStore, writer))
+		service.RegisterUsagePlugin(pcusage.NewPersistPlugin(usageStore, nil))
 	}
 
 	if len(cleanupFns) > 0 {

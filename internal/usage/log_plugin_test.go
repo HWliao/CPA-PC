@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sdkusage "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/usage"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestLogPluginWritesUsageRecord(t *testing.T) {
@@ -74,27 +75,77 @@ func TestPersistPluginWritesConvertedEvent(t *testing.T) {
 	}
 }
 
-func TestPersistPluginLogsStoreFailure(t *testing.T) {
-	wantErr := errors.New("insert failed")
-	store := &fakeEventStore{err: wantErr}
-	var output bytes.Buffer
-	plugin := NewPersistPlugin(store, &output)
+func TestPersistPluginIgnoresCanceledRequestContext(t *testing.T) {
+	store := &fakeEventStore{failOnCanceledCtx: true}
+	plugin := NewPersistPlugin(store, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	plugin.HandleUsage(context.Background(), sdkusage.Record{Model: "m"})
+	plugin.HandleUsage(ctx, sdkusage.Record{
+		Provider:    "openai",
+		Model:       "deepseek-v4-flash",
+		APIKey:      "secret-api-key",
+		RequestedAt: time.Date(2026, 6, 2, 6, 25, 29, 0, time.UTC),
+	})
 
-	if !strings.Contains(output.String(), wantErr.Error()) {
-		t.Fatalf("output = %q, want error", output.String())
+	if len(store.events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(store.events))
+	}
+	if store.ctx == nil {
+		t.Fatal("store ctx is nil")
+	}
+	if store.ctxErrAtInsert != nil {
+		t.Fatalf("store ctx err at insert = %v, want nil", store.ctxErrAtInsert)
 	}
 }
 
-type fakeEventStore struct {
-	events []Event
-	err    error
+func TestPersistPluginLogsStoreFailure(t *testing.T) {
+	wantErr := errors.New("insert failed")
+	store := &fakeEventStore{err: wantErr}
+	output := captureLogOutput(t)
+	plugin := NewPersistPlugin(store, nil)
+
+	plugin.HandleUsage(context.Background(), sdkusage.Record{Model: "m"})
+
+	line := output.String()
+	if !strings.Contains(line, "usage persist failed") || !strings.Contains(line, wantErr.Error()) {
+		t.Fatalf("log output = %q, want usage persist failure and error", line)
+	}
 }
 
-func (s *fakeEventStore) InsertEvents(_ context.Context, events []Event) (InsertResult, error) {
+func captureLogOutput(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var output bytes.Buffer
+	logger := log.StandardLogger()
+	previousOut := logger.Out
+	previousFormatter := logger.Formatter
+	log.SetOutput(&output)
+	log.SetFormatter(&log.TextFormatter{DisableTimestamp: true})
+	t.Cleanup(func() {
+		log.SetOutput(previousOut)
+		log.SetFormatter(previousFormatter)
+	})
+	return &output
+}
+
+type fakeEventStore struct {
+	events            []Event
+	err               error
+	failOnCanceledCtx bool
+	ctx               context.Context
+	ctxErrAtInsert    error
+}
+
+func (s *fakeEventStore) InsertEvents(ctx context.Context, events []Event) (InsertResult, error) {
+	s.ctx = ctx
+	s.ctxErrAtInsert = ctx.Err()
 	if s.err != nil {
 		return InsertResult{}, s.err
+	}
+	if s.failOnCanceledCtx {
+		if err := ctx.Err(); err != nil {
+			return InsertResult{}, err
+		}
 	}
 	s.events = append(s.events, events...)
 	return InsertResult{Inserted: len(events)}, nil
