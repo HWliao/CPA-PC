@@ -1,0 +1,107 @@
+{
+  "skill_name": "use-agent-skills",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "使用 use-agent-skills 帮我把这个模糊需求先理清楚：我想做一个给团队用的知识库工具，但还没想清楚具体功能。",
+      "expected_output": "应选择 interview-me 或 interview-me -> idea-refine，不应直接进入 build/test/review。输出需要说明为什么先澄清需求。",
+      "files": [],
+      "assertions": [
+        "选择了 interview-me 作为主要内部模块，或给出 interview-me -> idea-refine 的合理序列",
+        "没有直接进入实现、测试或发布模块",
+        "说明了选择该模块的理由"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "用 agent skills 的内部 /spec 命令，帮我为一个订单导出功能写规格。",
+      "expected_output": "应尊重用户指定的 /spec，读取 commands/spec.md，并路由到 spec-driven-development。产物路径应指向 <project_root>/docs/SPEC.md。",
+      "files": [],
+      "assertions": [
+        "识别并尊重用户指定的 /spec 内部命令",
+        "选择 spec-driven-development 模块",
+        "说明规格产物应写入 <project_root>/docs/SPEC.md"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "使用 use-agent-skills，我已经有 docs/SPEC.md 了，现在帮我拆成可执行任务。",
+      "expected_output": "应选择 planning-and-task-breakdown，读取 <project_root>/docs/SPEC.md，并将计划/任务产物放到 <project_root>/docs/。",
+      "files": [
+        "evals/files/plan-spec/docs/SPEC.md"
+      ],
+      "assertions": [
+        "选择 planning-and-task-breakdown 作为主要内部模块",
+        "没有重新进入 spec-driven-development 重新写规格",
+        "说明计划相关产物位于 <project_root>/docs/"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "使用 agent-skills 帮我修一个 bug：登录后刷新页面偶尔变成未登录。",
+      "expected_output": "应选择 debugging-and-error-recovery -> test-driven-development，强调先复现、再写失败测试、再修复。",
+      "files": [],
+      "assertions": [
+        "选择 debugging-and-error-recovery 作为起点",
+        "包含 test-driven-development 或 Prove-It 流程",
+        "没有直接跳到 shipping 或 documentation 模块"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "进入 use-agent-skills，帮我评审这次改动有没有明显问题。",
+      "expected_output": "应选择 code-review-and-quality；如果提到安全或性能，只作为可选深入模块，不应默认启动 /ship fan-out。",
+      "files": [],
+      "assertions": [
+        "选择 code-review-and-quality 作为主要内部模块",
+        "没有默认选择 shipping-and-launch 或 /ship",
+        "安全和性能作为评审维度或可选深入模块出现"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "用内部 /ship 命令帮我做上线前检查。",
+      "expected_output": "应尊重 /ship，读取 commands/ship.md，使用 shipping-and-launch，并说明会使用 agents 下的子 agent prompt 模板做 fan-out。",
+      "files": [],
+      "assertions": [
+        "识别并尊重 /ship 内部命令",
+        "选择 shipping-and-launch 模块",
+        "说明 agents/ 是子 agent prompt 模板，不是用户角色依赖"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "使用 use-agent-skills，我要设计一个对外 REST API，后端和前端都要调用，先帮我定接口边界。",
+      "expected_output": "应选择 api-and-interface-design，必要时组合 source-driven-development 或 documentation-and-adrs；不应先进入 frontend-ui-engineering。",
+      "files": [],
+      "assertions": [
+        "选择 api-and-interface-design 作为主要内部模块",
+        "没有把前端实现模块作为起点",
+        "如给出模块序列，序列短且合理"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "使用 use-agent-skills，这段代码已经能跑，但是太绕了，帮我变简单一点。",
+      "expected_output": "应选择 code-simplification，并强调保持行为不变和验证。",
+      "files": [],
+      "assertions": [
+        "选择 code-simplification 作为主要内部模块",
+        "强调不改变行为",
+        "包含测试或验证要求"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "使用 use-agent-skills。只测试流程状态，不要生成完整规格：先进入内部 /spec；然后我明确要求退出流程；最后我在退出后发送 /plan。请按技能流程规则处理这三个连续状态。",
+      "expected_output": "应在同一个响应中明确展示 Entered. 和 Exited.；退出后的 /plan 不应被当作内部命令执行，除非用户重新进入 use-agent-skills。",
+      "files": [],
+      "assertions": [
+        "进入流程时输出 Entered.",
+        "退出流程时输出 Exited.",
+        "退出后不把 /plan 当作内部命令执行",
+        "提示用户如需使用内部命令需要重新进入 use-agent-skills"
+      ]
+    }
+  ]
+}

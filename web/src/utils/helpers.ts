@@ -62,6 +62,22 @@ export function generateId(): string {
 }
 
 /**
+ * 判断是否为普通对象（排除 null 与数组）
+ */
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * 从 unknown 错误中提取可读消息
+ */
+export const getErrorMessage = (error: unknown, fallback = ''): string => {
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'string') return error || fallback;
+  if (isRecord(error) && typeof error.message === 'string') return error.message || fallback;
+  return fallback;
+};
+
+/**
  * 深拷贝对象
  */
 export function deepClone<T>(obj: T): T {

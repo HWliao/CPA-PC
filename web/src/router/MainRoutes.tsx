@@ -16,12 +16,16 @@ import { AuthFilesOAuthExcludedEditPage } from '@/pages/AuthFilesOAuthExcludedEd
 import { AuthFilesOAuthModelAliasEditPage } from '@/pages/AuthFilesOAuthModelAliasEditPage';
 import { OAuthPage } from '@/pages/OAuthPage';
 import { QuotaPage } from '@/pages/QuotaPage';
+import { PluginResourcePage } from '@/features/plugins/PluginResourcePage';
+import { PluginsPage } from '@/features/plugins/PluginsPage';
+import { PluginStorePage } from '@/features/plugins/PluginStorePage';
 import { MonitoringCenterPage } from '@/pages/MonitoringCenterPage';
 import { CodexInspectionPage } from '@/pages/CodexInspectionPage';
 import { MonitoringChartsPage } from '@/pages/MonitoringChartsPage';
 import { ConfigPage } from '@/pages/ConfigPage';
 import { LogsPage } from '@/pages/LogsPage';
 import { SystemPage } from '@/pages/SystemPage';
+import { useAuthStore } from '@/stores';
 
 // Exported for route registration tests; the runtime entry point remains MainRoutes.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -85,6 +89,25 @@ export const mainRoutes = [
   { path: '*', element: <Navigate to="/" replace /> },
 ];
 
+const pluginRoutes = [
+  { path: '/plugin-pages/:pluginId/:menuIndex', element: <PluginResourcePage /> },
+  { path: '/plugins', element: <PluginsPage /> },
+  { path: '/plugin-store', element: <PluginStorePage /> },
+  { path: '/plugins/*', element: <Navigate to="/plugins" replace /> },
+];
+
+const pluginFallbackRoutes = [
+  { path: '/plugin-pages/*', element: <Navigate to="/" replace /> },
+  { path: '/plugins/*', element: <Navigate to="/" replace /> },
+  { path: '/plugin-store', element: <Navigate to="/" replace /> },
+];
+
 export function MainRoutes({ location }: { location?: Location }) {
-  return useRoutes(mainRoutes, location);
+  const supportsPlugin = useAuthStore((state) => state.supportsPlugin);
+  const catchAll = mainRoutes[mainRoutes.length - 1];
+  const baseRoutes = mainRoutes.slice(0, -1);
+  return useRoutes(
+    [...baseRoutes, ...(supportsPlugin ? pluginRoutes : pluginFallbackRoutes), catchAll],
+    location
+  );
 }

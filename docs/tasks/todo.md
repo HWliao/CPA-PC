@@ -1,76 +1,64 @@
-# Task List: Model Price Sync Source Selection And Field Labels
+# Tasks: CPA SDK 7.2.20 Upgrade And Upstream Management Diff
 
-Status: Draft for human review. Do not implement until approved.
+Status: Implemented and verified.
 
-## Phase 1: Backend Contract And Embedded Source
+Spec: `docs/SPEC.md`
 
-- [x] Task 1: Extend model price sync request contract
-  - Acceptance: `source: "embedded"` and provider/model targets are accepted; missing source defaults to `embedded`; embedded returns stored prices with `imported = 0`, `skipped = 0`; invalid source returns bad request.
-  - Verify: `go test ./internal/httpapi`
-  - Dependencies: None
-  - Files: `internal/httpapi/info.go`, `internal/httpapi/info_test.go`
+Plan: `docs/tasks/plan.md`
 
-## Checkpoint: Backend Contract
+## Task List
 
-- [x] Existing empty-body sync clients still work.
-- [x] Route contract can carry provider/model targets.
+- [x] Task 1: Capture baseline and create report scaffolds
+  - Acceptance: `docs/reports/cpa-sdk-7.2.20-upgrade.md` and `docs/reports/management-ui-upstream-diff.md` exist with baseline sections for current CPA-PC SDK version, reference source paths, source revision/status when available, and report structure for impact/additions/modifications/breaking changes.
+  - Verify: confirm both report files exist and include baseline, scope, and pending-verification sections.
+  - Files: `docs/reports/cpa-sdk-7.2.20-upgrade.md`, `docs/reports/management-ui-upstream-diff.md`.
+  - Depends on: confirmed plan.
 
-## Phase 2: Backend models.dev Sync
+- [x] Task 2: Analyze SDK changes from `v7.1.39` to `v7.2.20`
+  - Acceptance: SDK report summarizes relevant upstream changes affecting CPA-PC integration points: startup, config loading, management routes, auth, static serving, usage plugin hooks, logging, runtime paths, public APIs, and dependency shifts.
+  - Verify: report includes exact comparison basis from `../CLIProxyApi`, plus impact/additions/modifications/breaking-change classification.
+  - Files: `docs/reports/cpa-sdk-7.2.20-upgrade.md`.
+  - Depends on: Task 1.
 
-- [x] Task 2: Add models.dev price fetch and parse helpers
-  - Acceptance: parser validates provider/model IDs and numeric costs; maps `input -> prompt`, `output -> completion`, `cache_read -> cache`; missing `cache_read` maps to `input / 10`; tests do not call live models.dev.
-  - Verify: `go test ./internal/httpapi`
-  - Dependencies: Task 1
-  - Files: `internal/httpapi/info.go` or helper file, `internal/httpapi/info_test.go` or focused test file
+- [x] Task 3: Upgrade CLIProxyAPI SDK dependency
+  - Acceptance: root `go.mod` requires `github.com/router-for-me/CLIProxyAPI/v7 v7.2.20`, `go.sum` is updated consistently, and any compile-time compatibility fixes are minimal and scoped to CPA-PC integration.
+  - Verify: run `go get github.com/router-for-me/CLIProxyAPI/v7@v7.2.20`, `go mod tidy`, and `go test ./...`; record results in the SDK report.
+  - Files: `go.mod`, `go.sum`, possible focused files under `cmd/cpa-pc/`, `internal/app/`, `internal/config/`, `internal/httpapi/` only if required by compile/test failures.
+  - Depends on: Task 2.
 
-- [x] Task 3: Match and import models.dev prices
-  - Acceptance: matching uses provider+model; Codex and `gpt-*` normalize to OpenAI; imported prices include `source = "model.dev"`; skipped/unrequested models preserve existing prices; imported/skipped counts are accurate.
-  - Verify: `go test ./internal/httpapi ./internal/store`
-  - Dependencies: Task 2
-  - Files: `internal/httpapi/info.go` or helper file, `internal/httpapi/info_test.go` or focused test file, optional `internal/store/store.go`
+- [x] Task 4: Compare official management UI current tree with CPA-PC `web/`
+  - Acceptance: UI report identifies relevant current-tree differences for routes, API clients, auth handling, config editor, model/API-key pages, request monitoring, usage pages, i18n, build setup, styling, and generated asset implications.
+  - Verify: report includes adopt/preserve/conflict decisions and impact/additions/modifications/breaking-change classification.
+  - Files: `docs/reports/management-ui-upstream-diff.md`.
+  - Depends on: Task 1.
 
-## Checkpoint: Backend Sync
+- [x] Task 5: Sync relevant official management UI changes into CPA-PC
+  - Acceptance: approved relevant upstream UI differences are applied to `web/` without removing CPA-PC-specific behavior: hash router, usage pages, CPA-PC info, API-key aliases, local model prices, i18n, and single-file build setup.
+  - Verify: run `npm --prefix web run type-check` and `npm --prefix web run lint`; record results in the UI report.
+  - Files: targeted files under `web/` only, plus `docs/reports/management-ui-upstream-diff.md`.
+  - Depends on: Task 4.
 
-- [x] `embedded` and `model.dev` source paths are both tested.
-- [x] Unit tests make no live network calls.
-- [x] Manual prices are preserved for skipped/unrequested models.
+- [x] Task 6: Rebuild generated management asset after frontend changes
+  - Acceptance: if Task 5 changes `web/`, root `static/management.html` is regenerated through the existing build script and not edited by hand.
+  - Verify: run `npm --prefix web run build`; confirm `static/management.html` is updated only by the build pipeline and record result in the UI report.
+  - Files: `static/management.html`, possible `web/dist/` transient output ignored by repository rules, `docs/reports/management-ui-upstream-diff.md`.
+  - Depends on: Task 5.
 
-## Phase 3: Frontend API And Sync Flow
+- [x] Task 7: Final verification and summary reporting
+  - Acceptance: final reports summarize actual impact, additions, modifications, breaking-change status, commands run, pass/fail outcomes, changed files, and residual risks.
+  - Verify: run required final checks based on touched files: `go test ./...`; if `web/` changed, `npm --prefix web run type-check`, `npm --prefix web run lint`, and `npm --prefix web run build` must have results recorded.
+  - Files: `docs/reports/cpa-sdk-7.2.20-upgrade.md`, `docs/reports/management-ui-upstream-diff.md`.
+  - Depends on: Tasks 3 and 6 when frontend changes are made; Tasks 3 and 4 if no frontend changes are applied.
 
-- [x] Task 4: Update frontend sync types and hook signature
-  - Acceptance: frontend has `ModelPriceSyncSource`; sync targets include provider/model; API sends `{ source, models }`; hook exposes new signature without unrelated behavior changes.
-  - Verify: `npm --prefix web run type-check`
-  - Dependencies: Task 1
-  - Files: `web/src/services/api/usageService.ts`, `web/src/features/monitoring/hooks/useUsageData.ts`
+## Implementation Rules
 
-- [x] Task 5: Add source selection modal to request monitoring
-  - Acceptance: one-click sync opens source modal before API call; modal lists `embedded` and `model.dev`; confirming sync sends selected source and targets; notifications remain clear.
-  - Verify: `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests are practical; `npm --prefix web run type-check`
-  - Dependencies: Task 4
-  - Files: `web/src/pages/MonitoringCenterPage.tsx`, optional `web/src/pages/MonitoringCenterPage.test.tsx`
+- Complete tasks in dependency order unless a task is explicitly independent.
+- Keep code changes minimal and tied to the task acceptance criteria.
+- Do not replace the entire `web/` app wholesale.
+- Do not hand-edit `static/management.html`.
+- Do not introduce `../CLIProxyApi` or the official management UI checkout as a dependency.
+- Stop and ask before any change that violates `docs/SPEC.md` boundaries.
 
-- [x] Task 6: Rename price labels in UI locales
-  - Acceptance: zh-CN uses `输入价格`, `输出价格`, `输入缓存价格`; English uses `Input price`, `Output price`, `Input cache price`; zh-TW and ru avoid stale prompt/completion wording; UI still has exactly three price fields.
-  - Verify: `npm --prefix web run type-check`; `npm --prefix web run lint`
-  - Dependencies: None, should land with Task 5
-  - Files: `web/src/i18n/locales/en.json`, `web/src/i18n/locales/zh-CN.json`, `web/src/i18n/locales/zh-TW.json`, `web/src/i18n/locales/ru.json`
+## Confirmation Gate
 
-## Checkpoint: Frontend UI
-
-- [x] Price labels are clear in the model price modal.
-- [x] Sync source selection is required before sync starts.
-- [x] Frontend type check passes.
-
-## Phase 4: Final Verification
-
-- [x] Task 7: Run final checks and review diff
-  - Acceptance: focused backend tests pass; frontend type check passes; lint passes if frontend files changed; relevant frontend tests pass if added/updated; generated static asset is not touched unless rebuilt through `npm --prefix web run build`.
-  - Verify: `go test ./internal/httpapi ./internal/store`; `npm --prefix web run type-check`; `npm --prefix web run lint`; `npm --prefix web test -- src/pages/MonitoringCenterPage.test.tsx` if focused tests exist; `go test ./...` if warranted.
-  - Dependencies: Tasks 1-6
-  - Files: None unless verification exposes a defect
-
-## Checkpoint: Complete
-
-- [x] All `docs/SPEC.md` acceptance criteria are satisfied.
-- [x] No unrelated monitoring charts, quota panels, config merging, packaging, or Windows script code was changed.
-- [ ] Human review approves the completed implementation.
+Implementation completed after user confirmation.

@@ -1,0 +1,55 @@
+{
+  "skill_name": "code-simplify",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我清理 src/api/user.ts 里这次 AI 生成的代码味道，要求不改变接口行为，能删的废话注释和过度防御代码就删掉。",
+      "expected_output": "The agent narrows scope to src/api/user.ts, removes only safe AI-looking noise, preserves public API behavior and boundary validation, reviews the diff, and reports verification.",
+      "files": [],
+      "expectations": [
+        "Processes only src/api/user.ts and does not broaden scope beyond the explicit file.",
+        "Preserves the exported UserRequest, User, and getUser public API signatures.",
+        "Preserves request/user id validation while removing or simplifying only safe AI-looking noise.",
+        "Reports verification performed or clearly explains why verification was skipped."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I just generated src/components/ProfileCard.tsx and it feels very AI-ish. Please humanize the code, but don't redesign the UI or introduce new abstractions.",
+      "expected_output": "The agent focuses on the named component file, removes mechanical patterns and obvious comments, keeps the existing design system and UI behavior, and avoids broad redesigns.",
+      "files": [],
+      "expectations": [
+        "Processes only src/components/ProfileCard.tsx and does not broaden scope beyond the explicit file.",
+        "Does not redesign the UI or introduce a new abstraction/component/helper.",
+        "Removes or simplifies AI-looking noise without changing ProfileCard props or visible behavior.",
+        "Reports behavior-risk review or verification performed."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "对当前分支做一次去AI痕迹处理，只处理源码和测试文件，别碰 lock file、generated 文件和迁移脚本。",
+      "expected_output": "The agent treats this as explicit branch-level cleanup, inspects branch changes, filters excluded files, edits conservatively, and reports processed and skipped files.",
+      "files": [],
+      "expectations": [
+        "Treats the request as branch-level cleanup and inspects changed files with git or an equivalent changed-file workflow.",
+        "Skips package-lock.json, src/generated/client.ts, and migrations/001-create-orders.sql.",
+        "Processes source and test files conservatively without changing public behavior.",
+        "Uses or explicitly considers subagents for multiple independent files while keeping final diff review in the main session.",
+        "Reports combined diff review and verification performed or skipped."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "src/utils/loadConfig.ts 里的 loadConfig 函数看起来绕得很厉害，帮我简化一下。注意里面的文件读取异常处理和参数校验不能删。",
+      "expected_output": "The agent simplifies local control flow while preserving file I/O error handling and parameter validation, skipping any uncertain changes.",
+      "files": [],
+      "expectations": [
+        "Simplifies only src/utils/loadConfig.ts, especially the loadConfig function, without broadening scope.",
+        "Preserves file path validation and file-read error handling behavior.",
+        "Preserves JSON parse error handling and config field validation semantics.",
+        "Avoids changing return shape, thrown error intent, and side effects.",
+        "Explains skipped risky simplifications or states that none were skipped."
+      ]
+    }
+  ]
+}

@@ -19,8 +19,10 @@ import {
   IconSidebarLogs,
   IconSidebarMonitor,
   IconSidebarOauth,
+  IconSidebarPlugins,
   IconSidebarProviders,
   IconSidebarQuota,
+  IconSidebarStore,
   IconSidebarSystem,
 } from '@/components/ui/icons';
 import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
@@ -44,6 +46,8 @@ const sidebarIcons: Record<string, ReactNode> = {
   oauth: <IconSidebarOauth size={18} />,
   quota: <IconSidebarQuota size={18} />,
   monitoring: <IconSidebarMonitor size={18} />,
+  plugins: <IconSidebarPlugins size={18} />,
+  pluginStore: <IconSidebarStore size={18} />,
   config: <IconSidebarConfig size={18} />,
   logs: <IconSidebarLogs size={18} />,
   system: <IconSidebarSystem size={18} />,
@@ -215,6 +219,7 @@ export function MainLayout() {
   const location = useLocation();
 
   const logout = useAuthStore((state) => state.logout);
+  const supportsPlugin = useAuthStore((state) => state.supportsPlugin);
 
   const config = useConfigStore((state) => state.config);
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
@@ -398,6 +403,12 @@ export function MainLayout() {
     ...(requestMonitoringAvailability.available
       ? [{ path: '/monitoring', label: t('nav.monitoring_center'), icon: sidebarIcons.monitoring }]
       : []),
+    ...(supportsPlugin
+      ? [
+          { path: '/plugins', label: t('nav.plugins'), icon: sidebarIcons.plugins },
+          { path: '/plugin-store', label: t('nav.plugin_store'), icon: sidebarIcons.pluginStore },
+        ]
+      : []),
     ...(config?.loggingToFile
       ? [{ path: '/logs', label: t('nav.logs'), icon: sidebarIcons.logs }]
       : []),
@@ -435,6 +446,8 @@ export function MainLayout() {
 
     const exactIndex = navOrder.indexOf(normalizedPath);
     if (exactIndex !== -1) return exactIndex;
+    const pluginsIndex = navOrder.indexOf('/plugins');
+    if (pluginsIndex !== -1 && normalizedPath.startsWith('/plugin-pages/')) return pluginsIndex + 0.1;
     const nestedIndex = navOrder.findIndex(
       (path) => path !== '/' && normalizedPath.startsWith(`${path}/`)
     );
@@ -454,8 +467,11 @@ export function MainLayout() {
       pathname === '/auth-files' || pathname.startsWith('/auth-files/');
     const isAiProviders = (pathname: string) =>
       pathname === '/ai-providers' || pathname.startsWith('/ai-providers/');
+    const isPlugins = (pathname: string) =>
+      pathname === '/plugins' || pathname === '/plugin-store' || pathname.startsWith('/plugin-pages/');
     if (isAuthFiles(from) && isAuthFiles(to)) return 'ios';
     if (isAiProviders(from) && isAiProviders(to)) return 'ios';
+    if (isPlugins(from) && isPlugins(to)) return 'ios';
     return 'vertical';
   }, []);
 

@@ -1,0 +1,66 @@
+[
+  {
+    "query": "帮我把 src/services/order.ts 里 AI 生成的味道去掉，尤其是那些废话注释和绕来绕去的 if，但不要改接口行为",
+    "should_trigger": true
+  },
+  {
+    "query": "I generated this helper with an agent and it looks too robotic. Humanize the code and simplify it without changing behavior.",
+    "should_trigger": true
+  },
+  {
+    "query": "对当前分支做去AI痕迹处理，只看源码和测试文件，lock 和 generated 不要碰",
+    "should_trigger": true
+  },
+  {
+    "query": "remove AI slop from packages/api/src/client.ts, but keep all external API validation and retry handling",
+    "should_trigger": true
+  },
+  {
+    "query": "这个 React 组件刚让 AI 写完，帮我清理机械化代码，不要重做 UI",
+    "should_trigger": true
+  },
+  {
+    "query": "simplify this nested function; it has too many obvious comments and defensive checks that don't seem necessary",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我优化性能，这个列表滚动很卡，需要虚拟滚动和缓存策略",
+    "should_trigger": false
+  },
+  {
+    "query": "请做一次安全审计，重点看 SQL 注入、权限绕过和敏感信息泄露",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我实现用户注册功能，包括数据库表、API、前端表单和单元测试",
+    "should_trigger": false
+  },
+  {
+    "query": "把整个项目 prettier 格式化一下，不需要改代码结构",
+    "should_trigger": false
+  },
+  {
+    "query": "review 这次 PR 有没有 bug，先不要改代码，只给 findings",
+    "should_trigger": false
+  },
+  {
+    "query": "把这个模块重构成 clean architecture，拆 repository、service、controller 三层",
+    "should_trigger": false
+  },
+  {
+    "query": "解释一下这段代码为什么要 catch 这个异常，不要修改文件",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我把 release note 写得不那么像 AI 文案",
+    "should_trigger": false
+  },
+  {
+    "query": "这个函数名字不好，帮我全项目重命名 getCwd 为 getCurrentWorkingDirectory",
+    "should_trigger": false
+  },
+  {
+    "query": "我想把这段代码压缩成尽可能少的行数，越短越好",
+    "should_trigger": false
+  }
+]

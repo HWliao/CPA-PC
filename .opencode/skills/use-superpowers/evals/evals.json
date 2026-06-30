@@ -1,0 +1,142 @@
+{
+  "skill_name": "use-superpowers",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "使用 use-superpowers。我要给当前仓库增加一个新的 CLI 子命令，用来导出最近 7 天的任务摘要。现在先停在 brainstorming 阶段：只问一个最关键的澄清问题，说明下一步 spec 和 plan 会分别放到哪里，但不要直接替我列一长串需求清单，也不要开始实现。",
+      "expected_output": "显式进入 use-superpowers 工作流，停在 brainstorming 阶段，只提出一个关键澄清问题，给出 docs/superpowers/specs 和 docs/superpowers/plans 路径安排，不直接进入实现或展开冗长需求分解。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into brainstorming before implementation.",
+        "The response references docs/superpowers/specs and docs/superpowers/plans as artifact locations.",
+        "The response asks exactly one key clarifying question rather than a long checklist.",
+        "The response does not jump directly into coding."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "按 superpowers 流程执行这个任务：修复一个偶发失败的测试。当前我已经有 plan 了，路径是 docs/superpowers/plans/2026-04-14-fix-flaky-test/index.md。仓库里还有一批未提交的实验改动，而且我可能要并行比较两种修复思路。请决定应该加载哪个执行模块，以及是否需要工作区隔离。",
+      "expected_output": "进入执行阶段，优先路由到 subagent-driven-development，并由 agent 自主决定加载 using-git-worktrees 作为隔离策略。",
+      "files": [],
+      "expectations": [
+        "The response routes into subagent-driven-development rather than brainstorming.",
+        "The response loads or recommends using-git-worktrees because the workspace conditions justify isolation.",
+        "The response loads or recommends systematic-debugging because the task is about a flaky test.",
+        "The response respects the provided docs/superpowers/plans path.",
+        "The response mentions review/verification discipline during execution."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "使用 use-superpowers。spec 已经确认并写好了，路径是 docs/superpowers/specs/2026-04-14-task-summary-export-design.md。现在不要实现，先进入正确模块把 implementation plan 写出来，并明确下一步应该 handoff 到哪个执行模块。",
+      "expected_output": "路由到 writing-plans，产出 docs/superpowers/plans/<date-topic>/index.md 和 task 文件路径，并明确 downstream execution module 由 agent 选择。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into writing-plans rather than brainstorming or direct execution.",
+        "The response references a docs/superpowers/plans directory with index.md as the plan artifact.",
+        "The response names subagent-driven-development or executing-plans as the downstream execution handoff."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "使用 use-superpowers。不要检查仓库、不要读取文件、不要写完整 implementation plan，也不要开始实现。只进入 writing-plans 阶段，用简短说明回答，并且必须逐字列出以下规范：plan 目录是 docs/superpowers/plans/YYYY-MM-DD-<topic>/；目录包含 index.md 和 task-<NN>-<task-name>.md；index.md 的 task list 字段必须是 #、Task Title、Task File、Task Status、Blocked By，不能用 Task/Status/Description/File 替代；Task Status 只允许 pending、processing、done；Blocked By 用任务编号表达 DAG 依赖。",
+      "expected_output": "路由到 writing-plans，只说明计划产物结构：保存到 docs/superpowers/plans/YYYY-MM-DD-<topic>/，包含 index.md 和 task-<NN>-<task-name>.md 文件；index.md task list 字段包括序号、task title、task file、task status、blocked by；状态值是 pending/processing/done，并用 Blocked By 表达 DAG 依赖。",
+      "files": [],
+      "expectations": [
+        "The response routes into writing-plans rather than implementation.",
+        "The response names docs/superpowers/plans/YYYY-MM-DD-<topic>/ as a plan directory, not a single plan.md file.",
+        "The response says the plan directory contains index.md and task-<NN>-<task-name>.md task files.",
+        "The response lists task list fields including sequential task number, task title, task file, task status, and blocked by.",
+        "The response says task status values are pending, processing, and done.",
+        "The response mentions dependency ordering or DAG-style blockers."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "使用 use-superpowers。implementation plan 在 docs/superpowers/plans/2026-04-17-export-summary/index.md，里面已经拆了 task-01-cli.md 和 task-02-tests.md。现在进入执行阶段，请说明执行时如何维护每个 task 的状态，以及状态写回哪里。",
+      "expected_output": "进入执行模块，读取 index.md 中的 task list，按 blocked by 依赖执行任务，并在 index.md 中把任务状态从 pending 更新为 processing，验证通过后更新为 done。",
+      "files": [],
+      "expectations": [
+        "The response routes to subagent-driven-development or executing-plans as the execution module.",
+        "The response treats docs/superpowers/plans/2026-04-17-export-summary/index.md as the plan source of truth.",
+        "The response says task status is updated in index.md.",
+        "The response uses the statuses pending, processing, and done.",
+        "The response does not invent extra statuses such as blocked, skipped, failed, or blocked-by-review.",
+        "The response respects blocked by dependencies before executing tasks."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "使用 use-superpowers。我要在 brainstorming 阶段用 visual companion 看几个 UI 草图。请说明浏览器 companion 的持久化目录会放在哪里，不要开始画图。",
+      "expected_output": "路由到 brainstorming，并说明 visual companion 使用 --project-dir 时持久化到 .superpowers/brainstorm/，而不是旧的隐藏 brainstorm 目录。",
+      "files": [],
+      "expectations": [
+        "The response routes into brainstorming.",
+        "The response identifies .superpowers/brainstorm as the visual companion persisted state path.",
+        "The response does not name any legacy hidden brainstorm directory as the persisted visual companion path.",
+        "The response does not start implementation or produce UI mockups yet."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "使用 use-superpowers。implementation plan 已经确认，我现在明确要在当前会话里直接执行，不走子任务分发。请进入正确模块并说明完成后会衔接到哪个模块收尾。",
+      "expected_output": "路由到 executing-plans，并明确完成后衔接 finishing-a-development-branch。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into executing-plans rather than subagent-driven-development.",
+        "The response names finishing-a-development-branch as the downstream completion module.",
+        "The response does not revert to brainstorming or plan writing."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "使用 use-superpowers。一个实现任务刚完成，接下来不是继续写代码，而是先进入正确模块做 review 请求。请说明当前要加载哪个模块，以及收到反馈后会进入哪个模块处理。",
+      "expected_output": "路由到 requesting-code-review，并明确反馈回来后 handoff 到 receiving-code-review。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into requesting-code-review.",
+        "The response names receiving-code-review as the downstream feedback-handling module.",
+        "The response does not skip directly to finishing-a-development-branch."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "使用 use-superpowers。reviewer 的反馈已经返回了，其中两条要修改，一条我认为技术上不成立。请进入正确模块处理这个阶段，并说明处理完后下一步可能回到哪个模块或进入哪个模块。",
+      "expected_output": "路由到 receiving-code-review，并明确可能回到执行模块、requesting-code-review 或 finishing-a-development-branch。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into receiving-code-review.",
+        "The response mentions technical evaluation rather than blind agreement.",
+        "The response names at least one valid downstream handoff module after processing feedback."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "使用 use-superpowers。实现、修复和 review 都完成了，现在我需要按流程收尾并决定是本地合并、提 PR、还是先保留分支。请进入正确模块，并说明这个阶段会强制依赖哪个 cross-cutting 模块。",
+      "expected_output": "路由到 finishing-a-development-branch，并明确依赖 verification-before-completion。",
+      "files": [],
+      "expectations": [
+        "The response explicitly recognizes that use-superpowers was activated by the user.",
+        "The response routes into finishing-a-development-branch.",
+        "The response names verification-before-completion as a supporting module for this stage.",
+        "The response presents finishing/merge/PR style choices rather than restarting execution."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "我想实现一个新的日志清理功能，你直接开始改代码吧。",
+      "expected_output": "在没有显式激活 use-superpowers 的情况下，不应擅自进入 superpowers 工作流。",
+      "files": [],
+      "expectations": [
+        "The response does not claim that use-superpowers is active.",
+        "The response does not force brainstorming/spec/plan just because the skill exists.",
+        "The response behaves like normal assistance outside the explicit workflow gate."
+      ]
+    }
+  ]
+}
