@@ -44,10 +44,10 @@ export interface ModelMappingDiagramProps {
 }
 
 const PROVIDER_COLORS = [
-  '#409eff',
-  '#67c23a',
-  '#e6a23c',
-  '#f56c6c',
+  '#8b8680',
+  '#10b981',
+  '#f59e0b',
+  '#c65746',
   '#8b5cf6',
   '#ec4899',
   '#06b6d4',

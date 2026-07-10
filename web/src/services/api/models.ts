@@ -108,7 +108,8 @@ export const modelsApi = {
   async fetchV1ModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    authIndex?: string
   ) {
     const endpoint = buildV1ModelsEndpoint(baseUrl);
     if (!endpoint) {
@@ -123,7 +124,8 @@ export const modelsApi = {
     const result = await apiCallApi.request({
       method: 'GET',
       url: endpoint,
-      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
+      authIndex
     });
 
     if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -140,7 +142,8 @@ export const modelsApi = {
   async fetchModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    authIndex?: string
   ) {
     const endpoint = buildModelsEndpoint(baseUrl);
     if (!endpoint) {
@@ -155,7 +158,8 @@ export const modelsApi = {
     const result = await apiCallApi.request({
       method: 'GET',
       url: endpoint,
-      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
+      authIndex
     });
 
     if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -185,7 +189,8 @@ export const modelsApi = {
   async fetchClaudeModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    authIndex?: string
   ) {
     const endpoint = buildClaudeModelsEndpoint(baseUrl);
     if (!endpoint) {
@@ -205,7 +210,7 @@ export const modelsApi = {
       resolvedHeaders['anthropic-version'] = DEFAULT_ANTHROPIC_VERSION;
     }
 
-    const signature = buildRequestSignature(endpoint, resolvedHeaders);
+    const signature = `${buildRequestSignature(endpoint, resolvedHeaders)}||${authIndex ?? ''}`;
     const existing = CLAUDE_MODELS_IN_FLIGHT.get(signature);
     if (existing) return existing;
 
@@ -213,7 +218,8 @@ export const modelsApi = {
       const result = await apiCallApi.request({
         method: 'GET',
         url: endpoint,
-        header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+        header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
+        authIndex
       });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -239,7 +245,8 @@ export const modelsApi = {
   async fetchGeminiModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    authIndex?: string
   ) {
     const endpoint = buildGeminiModelsEndpoint(baseUrl);
     if (!endpoint) {
@@ -252,7 +259,7 @@ export const modelsApi = {
       resolvedHeaders['x-goog-api-key'] = resolvedApiKey;
     }
 
-    const signature = buildRequestSignature(endpoint, resolvedHeaders);
+    const signature = `${buildRequestSignature(endpoint, resolvedHeaders)}||${authIndex ?? ''}`;
     const existing = GEMINI_MODELS_IN_FLIGHT.get(signature);
     if (existing) return existing;
 
@@ -270,7 +277,8 @@ export const modelsApi = {
         const result = await apiCallApi.request({
           method: 'GET',
           url: url.toString(),
-          header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+          header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
+          authIndex
         });
 
         if (result.statusCode < 200 || result.statusCode >= 300) {

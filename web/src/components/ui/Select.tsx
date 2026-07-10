@@ -25,6 +25,7 @@ interface SelectProps {
   className?: string;
   triggerClassName?: string;
   dropdownClassName?: string;
+  size?: 'sm' | 'md' | string;
   disabled?: boolean;
   ariaLabel?: string;
   ariaLabelledBy?: string;
