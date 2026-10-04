@@ -26,6 +26,8 @@
 - Management calls use `Authorization: Bearer <management key>`; the example local key is `123456`.
 
 ## Frontend Notes
+- The upstream management frontend source is `D:\develop\source-workspace\Cli-Proxy-API-Management-Center`; CPA-PC's `web/` mainly extends its monitoring module.
+- Before upgrading `web/`, update the local upstream source project, compare its features with `./web`, and let the user decide which upstream changes to adopt or skip before applying them.
 - Vite uses `vite-plugin-singlefile`, inlines assets, disables CSS/code splitting, and aliases `@` to `web/src`.
 - SCSS modules export camelCase names and automatically load `@use "@/styles/variables.scss" as *;`.
 - Routing uses `createHashRouter` in `web/src/App.tsx`; do not switch to browser-router URLs without adding server-side route support.

@@ -12,11 +12,11 @@ import (
 	pcstore "github.com/HWliao/CPA-PC/internal/store"
 	pcusage "github.com/HWliao/CPA-PC/internal/usage"
 	"github.com/gin-gonic/gin"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy"
-	cpaconfig "github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
-	_ "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator/builtin"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy"
+	cpaconfig "github.com/router-for-me/CLIProxyAPI/v8/sdk/config"
+	_ "github.com/router-for-me/CLIProxyAPI/v8/sdk/translator/builtin"
 	"golang.org/x/crypto/bcrypt"
 )
 
