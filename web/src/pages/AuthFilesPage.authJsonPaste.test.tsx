@@ -2,7 +2,7 @@ import { act } from 'react';
 import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
-import { AuthFilesPage } from './AuthFilesPage';
+import { AuthFilesPage } from '@/features/authFiles/AuthFilesPage';
 
 const { mocks } = vi.hoisted(() => {
   return {
@@ -61,6 +61,12 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesData', () => ({
     loading: false,
     error: '',
     uploading: false,
+    manualRefreshing: {},
+    refreshingAllCredentials: false,
+    refreshResults: null,
+    closeRefreshResults: vi.fn(),
+    handleRefreshAllCredentials: vi.fn(),
+    cooldownResetting: {},
     authJsonPasteSaving: mocks.authJsonPasteSaving,
     deleting: false,
     deletingAll: false,
@@ -74,6 +80,8 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesData', () => ({
     handleDelete: vi.fn(),
     handleDeleteAll: vi.fn(),
     handleDownload: vi.fn(),
+    handleManualRefresh: vi.fn(),
+    handleCooldownReset: vi.fn(),
     handleStatusToggle: vi.fn(),
     toggleSelect: vi.fn(),
     selectAllVisible: vi.fn(),
@@ -114,6 +122,7 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesModels', () => ({
     modelsError: '',
     showModels: vi.fn(),
     closeModelsModal: vi.fn(),
+    invalidateModels: vi.fn(),
   }),
 }));
 

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestLoadAppliesDefaultsAndResolvesRelativePaths(t *testing.T) {
@@ -103,8 +105,8 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Port != DefaultPort {
 		t.Fatalf("Port = %d, want %d", cfg.Port, DefaultPort)
 	}
-	if cfg.RemoteManagement.SecretKey != DefaultManagementKey {
-		t.Fatalf("RemoteManagement.SecretKey = %q, want %q", cfg.RemoteManagement.SecretKey, DefaultManagementKey)
+	if err := bcrypt.CompareHashAndPassword([]byte(cfg.RemoteManagement.SecretKey), []byte(DefaultManagementKey)); err != nil {
+		t.Fatalf("example management key does not match default: %v", err)
 	}
 	if cfg.RemoteManagement.DisableControlPanel {
 		t.Fatal("RemoteManagement.DisableControlPanel = true, want CPA default false")
@@ -193,6 +195,108 @@ usage:
 		if actual[name] != filepath.Clean(want) {
 			t.Fatalf("%s = %q, want %q", name, actual[name], filepath.Clean(want))
 		}
+	}
+}
+
+func TestLoadV8ConfigWithCompanion(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	content := []byte(`config-version: 8
+server:
+  host: "127.0.0.1"
+  port: 18431
+management:
+  secret-key: "custom-management-key"
+  allow-remote: true
+  disable-control-panel: true
+oauth:
+  auth-dir: "./credentials"
+observability:
+  logs:
+    logging-to-file: true
+access:
+  api-keys: ["client-key"]
+`)
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cpa-pc.yaml"), []byte(`data-dir: "./state"
+logs-dir: "./logs-custom"
+static-dir: "./assets"
+usage:
+  enabled: false
+  db-path: "./state/stats.sqlite"
+  query-limit: 42
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Host != "127.0.0.1" || cfg.Port != 18431 || !cfg.RemoteManagement.AllowRemote || !cfg.RemoteManagement.DisableControlPanel || !cfg.LoggingToFile {
+		t.Fatalf("SDK settings not loaded from v8 config: %+v", cfg)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(cfg.RemoteManagement.SecretKey), []byte("custom-management-key")); err != nil {
+		t.Fatalf("management key does not match: %v", err)
+	}
+	if cfg.Runtime.AuthDir != filepath.Join(dir, "credentials") || cfg.Runtime.DataDir != filepath.Join(dir, "state") || cfg.Runtime.LogsDir != filepath.Join(dir, "logs-custom") || cfg.Runtime.StaticDir != filepath.Join(dir, "assets") || cfg.Runtime.UsageDBPath != filepath.Join(dir, "state", "stats.sqlite") {
+		t.Fatalf("runtime paths not preserved: %+v", cfg.Runtime)
+	}
+	if cfg.Usage.Enabled || cfg.Usage.QueryLimit != 42 {
+		t.Fatalf("usage settings not loaded from companion: %+v", cfg.Usage)
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil || string(data) != string(content) {
+		t.Fatalf("reading config changed file: %v", err)
+	}
+}
+
+func TestLoadV8ConfigRequiresCompanion(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("config-version: 8\nserver: {port: 18431}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "cpa-pc.yaml") {
+		t.Fatalf("Load() error = %v, want missing companion error", err)
+	}
+}
+
+func TestLoadV8ConfigRespectsExplicitEmptyManagementKey(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("config-version: 8\nmanagement: {secret-key: \"\"}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, CPAConfigFileName), []byte("usage: {enabled: false}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RemoteManagement.SecretKey != "" {
+		t.Fatal("explicit empty v8 management key was replaced with default")
+	}
+}
+
+func TestLoadLegacyConfigWithCompanionOverridesOnlyCPASettings(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("port: 18431\ndata-dir: ./old-data\nusage:\n  enabled: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cpa-pc.yaml"), []byte("data-dir: ./new-data\nusage:\n  enabled: false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Port != 18431 || cfg.Runtime.DataDir != filepath.Join(dir, "new-data") || cfg.Usage.Enabled {
+		t.Fatalf("Load() = %+v, want SDK port and companion CPA settings", cfg)
 	}
 }
 

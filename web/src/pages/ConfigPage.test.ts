@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getUsageServiceBootstrapToSync } from './ConfigPage';
+import { getUsageServiceBootstrapToSync } from '@/features/monitoring/usageServiceBootstrap';
 
 describe('getUsageServiceBootstrapToSync', () => {
   it('returns the normalized service base after a successful auto-load', () => {

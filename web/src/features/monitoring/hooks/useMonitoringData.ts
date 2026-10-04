@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authFilesApi } from '@/services/api/authFiles';
-import { apiClient } from '@/services/api/client';
 import type { ApiKeyAlias } from '@/services/api/usageService';
 import type { AuthFileItem } from '@/types/authFile';
 import type { Config } from '@/types/config';
@@ -115,13 +114,6 @@ const readString = (value: unknown) => {
   if (value === null || value === undefined) return '';
   const text = String(value).trim();
   return text;
-};
-
-const extractArrayPayload = (payload: unknown, key: string): unknown[] => {
-  if (Array.isArray(payload)) return payload;
-  if (!isRecord(payload)) return [];
-  const candidate = payload[key] ?? payload.items ?? payload.data ?? payload;
-  return Array.isArray(candidate) ? candidate : [];
 };
 
 const extractHost = (baseUrl: string) => {
@@ -1751,24 +1743,17 @@ const buildEventRows = (
 const loadMonitoringMetaPayload = async (
   config: Config | null | undefined
 ): Promise<MonitoringMetaPayload> => {
-  const [authResult, channelResult] = await Promise.allSettled([
-    authFilesApi.list(),
-    apiClient.get('/openai-compatibility'),
-  ]);
+  let authFiles: AuthFileItem[] = [];
+  let error = '';
+  try {
+    const response = await authFilesApi.list();
+    authFiles = Array.isArray(response.files) ? response.files : [];
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
 
-  const authFiles =
-    authResult.status === 'fulfilled' && Array.isArray(authResult.value.files)
-      ? authResult.value.files
-      : [];
-
-  let channels: MonitoringChannelMeta[] = [];
-
-  if (channelResult.status === 'fulfilled') {
-    channels = extractArrayPayload(channelResult.value, 'openai-compatibility')
-      .map((item, index) => normalizeOpenAIChannel(item, index))
-      .filter(Boolean) as MonitoringChannelMeta[];
-  } else if (config?.openaiCompatibility?.length) {
-    channels = config.openaiCompatibility
+  const channels: MonitoringChannelMeta[] = config?.openaiCompatibility?.length
+    ? config.openaiCompatibility
       .map((item, index) =>
         normalizeOpenAIChannel(
           {
@@ -1780,15 +1765,8 @@ const loadMonitoringMetaPayload = async (
           index
         )
       )
-      .filter(Boolean) as MonitoringChannelMeta[];
-  }
-
-  const error = [authResult, channelResult]
-    .filter((result) => result.status === 'rejected')
-    .map((result) => (result.status === 'rejected' ? result.reason : null))
-    .filter(Boolean)
-    .map((err) => (err instanceof Error ? err.message : String(err)))
-    .join('；');
+      .filter(Boolean) as MonitoringChannelMeta[]
+    : [];
 
   return { authFiles, channels, error };
 };

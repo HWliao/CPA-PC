@@ -244,15 +244,13 @@ export function ProviderSheet({
             ? '/ai-providers/openai'
             : state.brand === 'apikeyFun'
               ? '/quick-start'
-              : state.brand === 'claudeApi'
-                ? '/ai-providers/claudeapi'
-                : state.brand === 'code0'
-                  ? '/ai-providers/code0'
-                  : state.brand === 'fennoAI'
-                    ? '/ai-providers/fennoai'
-                    : state.brand === 'qiniuCloud'
-                      ? '/ai-providers/qiniu'
-                      : `/ai-providers/${state.brand}`,
+              : state.brand === 'fennoAI'
+                ? '/ai-providers/fennoai'
+                : state.brand === 'qiniuCloud'
+                  ? '/ai-providers/qiniu'
+                  : state.brand === 'kimi'
+                    ? '/ai-providers/kimi'
+                    : `/ai-providers/${state.brand}`,
       })}
       footer={footer}
       closeDisabled={submitting}

@@ -19,6 +19,8 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Upstream pages start async loads from effects and synchronously expose loading state.
+      'react-hooks/set-state-in-effect': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

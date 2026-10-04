@@ -12,10 +12,10 @@ CPA-PC 是面向个人 Windows PC 的 CLI Proxy API 单体应用。它通过 CLI
 - 本地 Management UI：通过 `http://127.0.0.1:8317/management.html` 管理基础配置、API Keys、AI Providers、Auth Files、OAuth、Quota、日志和系统信息。
 - 请求监控：内置本地 usage API，使用 `data/usage.sqlite` 持久化请求、token、cost、TPM、API-key alias 和模型单价等监控数据。
 - 监控图表：提供 `/monitoring/charts` 页面，支持最近 1 小时、5 小时、24 小时、7 天固定窗口；粒度随范围联动为 10 分钟、小时或天。
-- 多维度图表：支持全局总量、Provider、API-key 和模型维度，展示 token 用量/累计 token、cost/累计 cost 和 TPM 趋势；token 与 cost 图在同一行内用 tab 切换合计与累计视图。
+- 多维度图表：支持全局总量、账号、API-key 和模型维度，展示 token 用量/累计 token、cost/累计 cost 和 TPM 趋势；token 与 cost 图在同一行内用 tab 切换合计与累计视图。
 - 安全展示：API-key 图表和筛选项只展示 alias 或哈希前缀，不展示原始 API key；模型无单价时按 0 cost 处理并在页面提示。
-- 本地接口：提供 `/healthz`、`/cpa-pc/info`、`/v0/management/usage*`、模型单价和 API-key alias 等 CPA-PC 扩展接口。
-- 外置配置：使用 `config.yaml`/`config.example.yaml` 管理运行配置，数据、日志、静态资源和 usage DB 路径相对配置文件解析。
+- 本地接口：提供 `/healthz`、`/cpa-pc/info`、`/v8/management/cpa-pc/usage*`、模型单价和 API-key alias 等 CPA-PC 扩展接口。
+- 外置配置：`config.yaml` 管理 SDK v8 配置，`cpa-pc.yaml` 管理 CPA-PC 数据、日志、静态资源和 usage DB 路径；相对路径均以 `config.yaml` 所在目录为基准。旧版单文件配置仍可读取。
 - 外置静态管理页：通过 `static/management.html` 提供管理页面，前端可独立构建并在打包时复制。
 - Windows 运维脚本：提供计划任务管理脚本，可注册登录自启动、启动、停止、查看状态和删除任务。
 - Windows 发布包：打包生成发布目录和同名 zip，包含可执行文件、示例配置、管理页、Windows 脚本和必要文档。
@@ -46,14 +46,18 @@ npm run package:windows -- --version dev --build-frontend
 ```powershell
 cd dist\cpa-pc_dev_windows_amd64
 Copy-Item .\config.example.yaml .\config.yaml
+Copy-Item .\cpa-pc.example.yaml .\cpa-pc.yaml
 .\cpa-pc.exe
 ```
 
-也可以不复制配置文件，直接显式指定示例配置：
+旧版单文件配置可先预览并显式迁移，迁移时会创建 `cpa-pc.yaml`，并备份原文件为 `config.yaml.v0.bak`：
 
 ```powershell
-.\cpa-pc.exe -config .\config.example.yaml
+.\cpa-pc.exe -config .\config.yaml -preview-config-migration
+.\cpa-pc.exe -config .\config.yaml -migrate-config
 ```
+
+如需回滚，停止进程，将 `config.yaml.v0.bak` 恢复为 `config.yaml`，移走迁移生成的 `cpa-pc.yaml`，再重启。备份与迁移过程不会移动 SQLite 数据和认证文件。预览如报告未映射字段或 SDK 设置变化，应先检查配置再迁移。
 
 启动后访问：
 
@@ -72,6 +76,7 @@ dist/
     manage-cpa-pc.ps1
     start-cpa-pc.vbs
     config.example.yaml
+    cpa-pc.example.yaml
     static/
       management.html
     data/
@@ -92,6 +97,7 @@ scripts/package-windows.ts  Windows 发布目录和 zip 打包脚本
 scripts/win/                Windows 计划任务管理脚本和隐藏启动器
 docs/specs/                 已确认的规格文档和参考脚本
 config.example.yaml         发布包示例配置
+cpa-pc.example.yaml         CPA-PC 专用配置示例
 dist/                       本地生成的发布目录和 zip
 ```
 
@@ -124,27 +130,27 @@ Windows 管理脚本在发布目录内运行：
 ```powershell
 go test ./...
 go build ./cmd/cpa-pc
-npm --prefix web test -- --run
+npm --prefix web test
 npm --prefix web run lint
 npm --prefix web run build
 ```
 
 ## 本地数据和配置
 
-默认路径来自 `config.example.yaml`，相对配置文件所在目录解析：
+默认路径来自 `config.example.yaml` 与 `cpa-pc.example.yaml`，相对 `config.yaml` 所在目录解析：
 
 - `data-dir`: `./data`
 - `logs-dir`: `./logs`
 - `static-dir`: `./static`
 - `usage.db-path`: `./data/usage.sqlite`
-- `auth-dir`: `~/.cli-proxy-api`
+- `oauth.auth-dir`: `~/.cli-proxy-api`
 
-默认 `logging-to-file: false`，开启后日志写入配置的日志目录。
+默认 `observability.logs.logging-to-file: false`，开启后日志写入配置的日志目录。
 
 ## 注意事项
 
 - 本项目代码主要由 AI 生成，尚未经过严格人工 review，请勿在生产环境使用。
-- 默认 Management Key 是 `123456`，仅建议本机试用；对外开放前必须修改 `config.yaml` 中的 `remote-management.secret-key`。
+- 默认 Management Key 是 `123456`，仅建议本机试用；对外开放前必须修改 `config.yaml` 中的 `management.secret-key`。
 - `manage-cpa-pc.ps1 -Action create` 会注册本机计划任务，脚本会在需要时请求管理员权限。
 - `manage-cpa-pc.ps1 -Action remove` 会删除名为 `CPAPCTask` 的计划任务。
 - `manage-cpa-pc.ps1 -Action stop` 会停止进程名为 `cpa-pc` 的本机进程。

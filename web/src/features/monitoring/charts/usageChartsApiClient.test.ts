@@ -33,7 +33,7 @@ describe('usageServiceApi.getUsageCharts', () => {
 
   it('calls the charts endpoint with supported params and management auth', async () => {
     const response = await usageServiceApi.getUsageCharts(
-      'http://127.0.0.1:8317/v0/management',
+      'http://127.0.0.1:8317/v8/management',
       {
         range: '1h',
         granularity: 'hour',
@@ -46,7 +46,7 @@ describe('usageServiceApi.getUsageCharts', () => {
 
     expect(response).toBe(chartResponse);
     expect(axios.get).toHaveBeenCalledWith(
-      'http://127.0.0.1:8317/v0/management/usage/charts',
+      'http://127.0.0.1:8317/v8/management/cpa-pc/usage/charts',
       expect.objectContaining({
         headers: { Authorization: 'Bearer manage-secret' },
         params: {
@@ -68,7 +68,7 @@ describe('usageServiceApi.getUsageCharts', () => {
     );
 
     expect(axios.get).toHaveBeenCalledWith(
-      'http://127.0.0.1:8317/v0/management/usage/charts',
+      'http://127.0.0.1:8317/v8/management/cpa-pc/usage/charts',
       expect.objectContaining({
         params: { range: '1h' },
       })

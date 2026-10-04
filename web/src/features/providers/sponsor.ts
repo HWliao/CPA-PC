@@ -3,10 +3,10 @@ import type { SponsorProviderRaw } from './types';
 
 export const APIKEY_FUN_PROVIDER_NAME = 'apikeyFun';
 export const APIKEY_FUN_DISPLAY_NAME = 'APIKEY.FUN';
-export const APIKEY_FUN_AFFILIATE_URL = 'https://apikey.fun/register?aff=AKCPA';
-export const APIKEY_FUN_DASHBOARD_URL = 'https://apikey.fun/dashboard';
-export const APIKEY_FUN_STANDARD_BASE_URL = 'https://api.apikey.fun';
-export const APIKEY_FUN_DIRECT_BASE_URL = 'https://slb.apikey.fun';
+export const APIKEY_FUN_AFFILIATE_URL = 'https://apikey.fan/register?aff=AKCPA';
+export const APIKEY_FUN_DASHBOARD_URL = 'https://apikey.fan/dashboard';
+export const APIKEY_FUN_STANDARD_BASE_URL = 'https://api.apikey.fan';
+export const APIKEY_FUN_DIRECT_BASE_URL = 'https://slb.apikey.fan';
 export const APIKEY_FUN_OPENAI_BASE_URL = `${APIKEY_FUN_STANDARD_BASE_URL}/v1`;
 export const APIKEY_FUN_CODEX_BASE_URL = APIKEY_FUN_OPENAI_BASE_URL;
 export const APIKEY_FUN_ANTHROPIC_BASE_URL = APIKEY_FUN_STANDARD_BASE_URL;
@@ -162,10 +162,7 @@ export const isApiKeyFunOpenAIProvider = (
   config: OpenAIProviderConfig | undefined | null
 ): boolean => {
   if (!config) return false;
-  return (
-    normalizeText(config.name) === normalizeText(APIKEY_FUN_PROVIDER_NAME) ||
-    matchesApiKeyFunOpenAIBaseUrl(config.baseUrl)
-  );
+  return matchesApiKeyFunOpenAIBaseUrl(config.baseUrl);
 };
 
 export const isApiKeyFunClaudeProvider = (
@@ -182,7 +179,7 @@ export const isApiKeyFunCodexProvider = (config: ProviderKeyConfig | undefined |
 
 export const buildApiKeyFunRaw = (config: Config | null | undefined): SponsorProviderRaw => ({
   openai: (config?.openaiCompatibility ?? [])
-    .map((item, index) => ({ config: item, index }))
+    .map((item, index) => ({ config: item, index: item.sourceIndex ?? index }))
     .filter((item) => isApiKeyFunOpenAIProvider(item.config)),
   claude: (config?.claudeApiKeys ?? [])
     .map((item, index) => ({ config: item, index }))

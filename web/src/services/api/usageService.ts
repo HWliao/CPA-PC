@@ -425,7 +425,7 @@ export const usageServiceApi = {
 
   getUsage: async (base: string, managementKey?: string): Promise<UsagePayload> => {
     return withUsageServiceError(async () => {
-      const response = await axios.get<UsagePayload>(buildUrl(base, '/v0/management/usage'), {
+      const response = await axios.get<UsagePayload>(buildUrl(base, '/v8/management/cpa-pc/usage'), {
         timeout: USAGE_SERVICE_TIMEOUT_MS,
         headers: authHeaders(managementKey),
       });
@@ -440,7 +440,7 @@ export const usageServiceApi = {
   ): Promise<UsageChartsResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.get<UsageChartsResponse>(
-        buildUrl(base, '/v0/management/usage/charts'),
+        buildUrl(base, '/v8/management/cpa-pc/usage/charts'),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),
@@ -454,7 +454,7 @@ export const usageServiceApi = {
   getModelPrices: async (base: string, managementKey?: string): Promise<ModelPricesResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.get<ModelPricesResponse>(
-        buildUrl(base, '/v0/management/model-prices'),
+        buildUrl(base, '/v8/management/cpa-pc/model-prices'),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),
@@ -471,7 +471,7 @@ export const usageServiceApi = {
   ): Promise<ModelPricesResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.put<ModelPricesResponse>(
-        buildUrl(base, '/v0/management/model-prices'),
+        buildUrl(base, '/v8/management/cpa-pc/model-prices'),
         { prices },
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
@@ -488,7 +488,7 @@ export const usageServiceApi = {
   ): Promise<ApiKeyAliasesResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.get<ApiKeyAliasesResponse>(
-        buildUrl(base, '/v0/management/api-key-aliases'),
+        buildUrl(base, '/v8/management/cpa-pc/api-key-aliases'),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),
@@ -505,7 +505,7 @@ export const usageServiceApi = {
   ): Promise<ApiKeyAliasesResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.put<ApiKeyAliasesResponse>(
-        buildUrl(base, '/v0/management/api-key-aliases'),
+        buildUrl(base, '/v8/management/cpa-pc/api-key-aliases'),
         { items },
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
@@ -523,7 +523,7 @@ export const usageServiceApi = {
   ): Promise<void> => {
     await withUsageServiceError(async () => {
       await axios.delete(
-        buildUrl(base, `/v0/management/api-key-aliases/${encodeURIComponent(apiKeyHash)}`),
+        buildUrl(base, `/v8/management/cpa-pc/api-key-aliases/${encodeURIComponent(apiKeyHash)}`),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),
@@ -539,7 +539,7 @@ export const usageServiceApi = {
   ): Promise<ModelPriceSyncResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.post<ModelPriceSyncResponse>(
-        buildUrl(base, '/v0/management/model-prices/sync'),
+        buildUrl(base, '/v8/management/cpa-pc/model-prices/sync'),
         request ? { source: request.source, models: request.models } : {},
         {
           timeout: 30 * 1000,
@@ -552,7 +552,7 @@ export const usageServiceApi = {
 
   exportUsage: async (base: string, managementKey?: string): Promise<UsageExportResponse> => {
     return withUsageServiceError(async () => {
-      const response = await axios.get<Blob>(buildUrl(base, '/v0/management/usage/export'), {
+      const response = await axios.get<Blob>(buildUrl(base, '/v8/management/cpa-pc/usage/export'), {
         timeout: USAGE_SERVICE_TRANSFER_TIMEOUT_MS,
         headers: authHeaders(managementKey),
         responseType: 'blob',
@@ -572,7 +572,7 @@ export const usageServiceApi = {
   ): Promise<UsageImportResponse> => {
     return withUsageServiceError(async () => {
       const response = await axios.post<UsageImportResponse>(
-        buildUrl(base, '/v0/management/usage/import'),
+        buildUrl(base, '/v8/management/cpa-pc/usage/import'),
         payload,
         {
           timeout: USAGE_SERVICE_TRANSFER_TIMEOUT_MS,

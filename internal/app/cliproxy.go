@@ -76,13 +76,14 @@ func NewCLIProxyService(cfg *pcconfig.Config, opts ServiceOptions) (ProxyService
 	service, err := cliproxy.NewBuilder().
 		WithConfig(cpaCfg).
 		WithConfigPath(cfg.Runtime.ConfigPath).
-		WithServerOptions(api.WithMiddleware(buildInfoHeaderMiddleware(opts.BuildDate))).
+		WithServerOptions(api.WithMiddleware(buildInfoHeaderMiddleware(opts.BuildDate), protectUnmigratedConfig(cfg.Runtime.ConfigPath))).
 		WithServerOptions(api.WithRouterConfigurator(func(engine *gin.Engine, handler *handlers.BaseAPIHandler, _ *cpaconfig.Config) {
 			httpapi.RegisterRoutesWithOptions(engine, httpapi.RouteOptions{
 				Info:                      info,
 				Store:                     routeStore,
 				Config:                    cfg,
 				ManagementKey:             cfg.RemoteManagement.SecretKey,
+				ManagementKeyProvider:     managementPolicyFromFile(cfg.Runtime.ConfigPath),
 				StartedAt:                 time.Now(),
 				ChartAuthMetadataProvider: chartAuthMetadataProvider(handler),
 			})

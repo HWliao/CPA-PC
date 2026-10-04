@@ -4,6 +4,9 @@ import {
   buildCodexResponsesEndpoint,
   buildClaudeMessagesEndpoint,
   buildGeminiGenerateContentEndpoint,
+  buildInteractionsEndpoint,
+  buildInteractionsProbePayload,
+  INTERACTIONS_API_REVISION,
   buildOpenAIChatCompletionsEndpoint,
 } from '@/components/providers/utils';
 import { buildHeaderObject, hasHeader } from '@/utils/headers';
@@ -54,6 +57,7 @@ const resolveBearerToken = (headers: Record<string, string>): string => {
 export interface UseConnectivityTestArgs {
   brand: ProviderBrand;
   baseUrl: string;
+  proxyUrl?: string;
   testModel?: string;
   models: ModelEntryInput[];
   formHeaders: Array<{ key: string; value: string }>;
@@ -92,6 +96,7 @@ export function useConnectivityTest(
   const {
     brand,
     baseUrl,
+    proxyUrl,
     testModel,
     models,
     formHeaders,
@@ -150,6 +155,7 @@ export function useConnectivityTest(
     const m = models.map((it) => `${it.name}:${it.alias ?? ''}`).join('|');
     return [
       baseUrl,
+      proxyUrl ?? '',
       (testModel ?? '').trim(),
       apiKey ?? '',
       fallbackApiKey ?? '',
@@ -157,7 +163,7 @@ export function useConnectivityTest(
       h,
       m,
     ].join('||');
-  }, [apiKey, authIndex, baseUrl, fallbackApiKey, testModel, formHeaders, models]);
+  }, [apiKey, authIndex, baseUrl, proxyUrl, fallbackApiKey, testModel, formHeaders, models]);
 
   const lastSignatureRef = useRef(signature);
   useEffect(() => {
@@ -235,6 +241,7 @@ export function useConnectivityTest(
         const result = await apiCallApi.request(
           {
             authIndex: resolvedAuthIndex,
+            proxy_url: entry?.proxyUrl?.trim() || undefined,
             method: 'POST',
             url: endpoint,
             header: headerObj,
@@ -283,7 +290,7 @@ export function useConnectivityTest(
   }, [apiKeyEntries, brand, runOpenAIKey]);
 
   const runCodex = useCallback(async (): Promise<void> => {
-    if (brand !== 'codex') return;
+    if (brand !== 'codex' && brand !== 'meta' && brand !== 'xai') return;
 
     const trimmedBase = baseUrl.trim();
     if (!trimmedBase) {
@@ -333,6 +340,7 @@ export function useConnectivityTest(
       const result = await apiCallApi.request(
         {
           authIndex: resolvedAuthIndex,
+          proxy_url: proxyUrl?.trim() || undefined,
           method: 'POST',
           url: endpoint,
           header: headerObj,
@@ -356,10 +364,21 @@ export function useConnectivityTest(
     } finally {
       setInFlight((n) => n - 1);
     }
-  }, [apiKey, authIndex, baseUrl, brand, fallbackApiKey, formHeaders, messages, models, testModel]);
+  }, [
+    apiKey,
+    authIndex,
+    baseUrl,
+    brand,
+    fallbackApiKey,
+    formHeaders,
+    messages,
+    models,
+    testModel,
+    proxyUrl,
+  ]);
 
   const runGemini = useCallback(async (): Promise<void> => {
-    if (brand !== 'gemini') return;
+    if (brand !== 'gemini' && brand !== 'interactions') return;
 
     const model = pickModel(testModel, models);
     if (!model) {
@@ -367,7 +386,10 @@ export function useConnectivityTest(
       return;
     }
 
-    const endpoint = buildGeminiGenerateContentEndpoint(baseUrl ?? '', model);
+    const endpoint =
+      brand === 'interactions'
+        ? buildInteractionsEndpoint(baseUrl ?? '')
+        : buildGeminiGenerateContentEndpoint(baseUrl ?? '', model);
     if (!endpoint) {
       setGeminiStatus({ state: 'error', message: messages.endpointInvalid });
       return;
@@ -396,6 +418,9 @@ export function useConnectivityTest(
         headerObj['x-goog-api-key'] = '$TOKEN$';
       }
     }
+    if (brand === 'interactions' && !hasHeader(headerObj, 'api-revision')) {
+      headerObj['Api-Revision'] = INTERACTIONS_API_REVISION;
+    }
 
     setGeminiStatus({ state: 'loading', message: '' });
     setInFlight((n) => n + 1);
@@ -403,13 +428,18 @@ export function useConnectivityTest(
       const result = await apiCallApi.request(
         {
           authIndex: resolvedAuthIndex,
+          proxy_url: proxyUrl?.trim() || undefined,
           method: 'POST',
           url: endpoint,
           header: headerObj,
-          data: JSON.stringify({
-            contents: [{ parts: [{ text: 'Hi' }] }],
-            generationConfig: { maxOutputTokens: 8 },
-          }),
+          data: JSON.stringify(
+            brand === 'interactions'
+              ? buildInteractionsProbePayload(model)
+              : {
+                  contents: [{ parts: [{ text: 'Hi' }] }],
+                  generationConfig: { maxOutputTokens: 8 },
+                }
+          ),
         },
         { timeout: DEFAULT_TIMEOUT_MS }
       );
@@ -425,10 +455,21 @@ export function useConnectivityTest(
     } finally {
       setInFlight((n) => n - 1);
     }
-  }, [apiKey, authIndex, baseUrl, brand, fallbackApiKey, formHeaders, messages, models, testModel]);
+  }, [
+    apiKey,
+    authIndex,
+    baseUrl,
+    brand,
+    fallbackApiKey,
+    formHeaders,
+    messages,
+    models,
+    testModel,
+    proxyUrl,
+  ]);
 
   const runClaude = useCallback(async (): Promise<void> => {
-    if (brand !== 'claude' && brand !== 'claudeApi') return;
+    if (brand !== 'claude') return;
 
     const endpoint = buildClaudeMessagesEndpoint(baseUrl ?? '');
     if (!endpoint) {
@@ -473,6 +514,7 @@ export function useConnectivityTest(
       const result = await apiCallApi.request(
         {
           authIndex: resolvedAuthIndex,
+          proxy_url: proxyUrl?.trim() || undefined,
           method: 'POST',
           url: endpoint,
           header: headerObj,
@@ -496,7 +538,18 @@ export function useConnectivityTest(
     } finally {
       setInFlight((n) => n - 1);
     }
-  }, [apiKey, authIndex, baseUrl, brand, fallbackApiKey, formHeaders, messages, models, testModel]);
+  }, [
+    apiKey,
+    authIndex,
+    baseUrl,
+    brand,
+    fallbackApiKey,
+    formHeaders,
+    messages,
+    models,
+    testModel,
+    proxyUrl,
+  ]);
 
   return {
     openaiStatuses,

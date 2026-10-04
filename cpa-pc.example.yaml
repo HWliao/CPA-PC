@@ -1,0 +1,10 @@
+# CPA-PC runtime paths are resolved relative to config.yaml.
+data-dir: "./data"
+logs-dir: "./logs"
+static-dir: "./static"
+
+# CPA-PC local usage database (independent of SDK's in-memory usage statistics).
+usage:
+  enabled: true
+  db-path: "./data/usage.sqlite"
+  query-limit: 50000

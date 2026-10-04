@@ -32,6 +32,7 @@ vi.mock('@/stores', () => ({
 }));
 
 vi.mock('@/services/api', () => ({
+  apiClient: { getConnectionRevision: () => 0 },
   authFilesApi: {
     list: mocks.list,
     saveJsonObject: mocks.saveJsonObject,

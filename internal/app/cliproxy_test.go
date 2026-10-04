@@ -133,6 +133,14 @@ func TestConfigureEmbeddedLogOutputWritesMainLog(t *testing.T) {
 	}
 }
 
+func TestEmbeddedLogDirectoryUsesCPAConfigPath(t *testing.T) {
+	configured := filepath.Join(t.TempDir(), "custom-logs")
+	t.Setenv("WRITABLE_PATH", t.TempDir())
+	if got := embeddedLogDirectory(&pcconfig.Config{Runtime: pcconfig.RuntimePaths{LogsDir: configured}}); got != configured {
+		t.Fatalf("embeddedLogDirectory = %q, want %q", got, configured)
+	}
+}
+
 func TestNewCLIProxyServiceAppliesInitialDebugLogLevel(t *testing.T) {
 	t.Setenv("WRITABLE_PATH", "")
 	t.Setenv("writable_path", "")
@@ -312,6 +320,80 @@ remote-management:
 	}
 
 	waitForRequestErrorLog(t, filepath.Join(dir, "logs"))
+}
+
+func TestCLIProxyServiceKeepsV8ManagementKeyInSyncWithCPARoutes(t *testing.T) {
+	t.Setenv("MANAGEMENT_PASSWORD", "")
+	t.Setenv("MANAGEMENT_STATIC_PATH", "")
+	t.Setenv("WRITABLE_PATH", "")
+	port := reserveLocalPort(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := fmt.Sprintf("config-version: 8\nserver: {host: '127.0.0.1', port: %d}\nmanagement: {secret-key: 'old-secret'}\noauth: {auth-dir: './auth'}\n", port)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cpa-pc.yaml"), []byte("usage: {enabled: false}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := pcconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewCLIProxyService(cfg, ServiceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- service.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Errorf("service.Run returned %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("service did not stop")
+		}
+	})
+	base := fmt.Sprintf("http://127.0.0.1:%d", port)
+	client := &http.Client{Timeout: 2 * time.Second}
+	waitForHTTPStatus(t, client, http.MethodGet, base+"/healthz", "", http.StatusOK)
+	request := func(method, route, key, body string) int {
+		t.Helper()
+		req, err := http.NewRequest(method, base+route, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+key)
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage"} {
+		if status := request(http.MethodGet, route, "old-secret", ""); status != http.StatusOK {
+			t.Fatalf("GET %s with initial key: %d", route, status)
+		}
+	}
+	if status := request(http.MethodPatch, "/v8/management/config/management/secret-key", "old-secret", `"new-secret"`); status != http.StatusOK {
+		t.Fatalf("PATCH management key: %d", status)
+	}
+	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage"} {
+		if status := request(http.MethodGet, route, "old-secret", ""); status != http.StatusUnauthorized {
+			t.Fatalf("GET %s accepted stale key: %d", route, status)
+		}
+		if status := request(http.MethodGet, route, "new-secret", ""); status != http.StatusOK {
+			t.Fatalf("GET %s rejected new key: %d", route, status)
+		}
+	}
 }
 
 func TestEnsureEmbeddedWritablePathPreservesExplicitEnv(t *testing.T) {

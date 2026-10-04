@@ -134,6 +134,7 @@ function main(): void {
   const zipPath = `${packagePath}.zip`;
   const staticSource = path.join(repoRoot, 'static', 'management.html');
   const configSource = path.join(repoRoot, 'config.example.yaml');
+  const companionSource = path.join(repoRoot, 'cpa-pc.example.yaml');
   const windowsScriptsSource = path.join(repoRoot, 'scripts', 'win');
   const windowsScriptFiles = ['manage-cpa-pc.ps1', 'start-cpa-pc.vbs'];
 
@@ -152,6 +153,9 @@ function main(): void {
 
   if (!existsSync(configSource)) {
     throw new Error('config.example.yaml not found');
+  }
+  if (!existsSync(companionSource)) {
+    throw new Error('cpa-pc.example.yaml not found');
   }
 
   for (const fileName of windowsScriptFiles) {
@@ -196,6 +200,7 @@ function main(): void {
   );
 
   copyFileSync(configSource, path.join(packagePath, 'config.example.yaml'));
+  copyFileSync(companionSource, path.join(packagePath, 'cpa-pc.example.yaml'));
   copyFileSync(staticSource, path.join(staticTargetDir, 'management.html'));
 
   for (const fileName of windowsScriptFiles) {

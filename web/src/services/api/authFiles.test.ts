@@ -40,7 +40,7 @@ describe('authFilesApi save auth file upload contracts', () => {
     await expect(
       authFilesApi.saveText('direct-auth.json', '{"type":"codex","access_token":"token"}')
     ).resolves.toBeUndefined();
-    expect(mocks.postForm).toHaveBeenCalledWith('/auth-files', expect.any(FormData));
+    expect(mocks.postForm).toHaveBeenCalledWith('/credentials', expect.any(FormData));
     const file = getUploadedFile();
     expect(file.name).toBe('direct-auth.json');
     await expect(file.text()).resolves.toBe('{"type":"codex","access_token":"token"}');
@@ -62,7 +62,7 @@ describe('authFilesApi save auth file upload contracts', () => {
         access_token: 'token',
       })
     ).resolves.toBeUndefined();
-    expect(mocks.postForm).toHaveBeenCalledWith('/auth-files', expect.any(FormData));
+    expect(mocks.postForm).toHaveBeenCalledWith('/credentials', expect.any(FormData));
     const file = getUploadedFile();
     expect(file.name).toBe('converted-auth.json');
     await expect(file.text()).resolves.toBe('{"type":"codex","access_token":"token"}');

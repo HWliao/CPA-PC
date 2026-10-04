@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
-import { AuthFilesPage } from './AuthFilesPage';
+import { AuthFilesPage } from '@/features/authFiles/AuthFilesPage';
 
 const { mocks } = vi.hoisted(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -72,6 +72,7 @@ vi.mock('@/utils/clipboard', () => ({
 }));
 
 vi.mock('@/services/api', () => ({
+  apiClient: { getConnectionRevision: () => 0 },
   authFilesApi: {
     list: mocks.list,
     saveJsonObject: mocks.saveJsonObject,
@@ -122,6 +123,7 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesModels', () => ({
     modelsError: '',
     showModels: mocks.showModels,
     closeModelsModal: mocks.closeModelsModal,
+    invalidateModels: vi.fn(),
   }),
 }));
 

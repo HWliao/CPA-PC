@@ -100,7 +100,6 @@ export function DropdownMenu({
   useLayoutEffect(() => {
     if (!isOpen) return;
     // Measure trigger / menu DOM after open to position the portal-rendered menu.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     updatePosition();
   }, [isOpen, updatePosition]);
 

@@ -1,0 +1,16 @@
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.controls {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}

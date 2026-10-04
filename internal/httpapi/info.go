@@ -117,6 +117,7 @@ type RouteOptions struct {
 	Store                     UsageStore
 	Config                    *pcconfig.Config
 	ManagementKey             string
+	ManagementKeyProvider     func() (string, bool, error)
 	StartedAt                 time.Time
 	ChartAuthMetadataProvider func(context.Context) []usage.ChartAuthMetadata
 	ModelsDevAPIURL           string
@@ -175,8 +176,12 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		c.AbortWithStatusJSON(status, gin.H{"error": message})
 		return false
 	}
+	managementRoute := func(method, path string, handler gin.HandlerFunc) {
+		engine.Handle(method, "/v0/management"+path, handler)
+		engine.Handle(method, "/v8/management/cpa-pc"+path, handler)
+	}
 
-	engine.GET("/v0/management/usage", func(c *gin.Context) {
+	managementRoute(http.MethodGet, "/usage", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -195,7 +200,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, usage.BuildPayload(events))
 	})
-	engine.GET("/v0/management/usage/charts", func(c *gin.Context) {
+	managementRoute(http.MethodGet, "/usage/charts", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -218,20 +223,20 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, charts)
 	})
-	engine.GET("/v0/management/usage/export", func(c *gin.Context) {
+	managementRoute(http.MethodGet, "/usage/export", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
 		handleUsageExport(c, opts.Store)
 	})
-	engine.POST("/v0/management/usage/import", func(c *gin.Context) {
+	managementRoute(http.MethodPost, "/usage/import", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
 		handleUsageImport(c, opts.Store)
 	})
 
-	engine.GET("/v0/management/model-prices", func(c *gin.Context) {
+	managementRoute(http.MethodGet, "/model-prices", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -246,7 +251,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, gin.H{"prices": prices})
 	})
-	engine.PUT("/v0/management/model-prices", func(c *gin.Context) {
+	managementRoute(http.MethodPut, "/model-prices", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -273,7 +278,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, gin.H{"prices": prices})
 	})
-	engine.POST("/v0/management/model-prices/sync", func(c *gin.Context) {
+	managementRoute(http.MethodPost, "/model-prices/sync", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -328,7 +333,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		})
 	})
 
-	engine.GET("/v0/management/api-key-aliases", func(c *gin.Context) {
+	managementRoute(http.MethodGet, "/api-key-aliases", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -343,7 +348,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, gin.H{"items": aliases})
 	})
-	engine.PUT("/v0/management/api-key-aliases", func(c *gin.Context) {
+	managementRoute(http.MethodPut, "/api-key-aliases", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -370,7 +375,7 @@ func RegisterRoutesWithOptions(engine *gin.Engine, opts RouteOptions) {
 		}
 		c.JSON(http.StatusOK, gin.H{"items": aliases})
 	})
-	engine.DELETE("/v0/management/api-key-aliases/:apiKeyHash", func(c *gin.Context) {
+	managementRoute(http.MethodDelete, "/api-key-aliases/:apiKeyHash", func(c *gin.Context) {
 		if !protected(c) {
 			return
 		}
@@ -483,6 +488,14 @@ func authenticateManagementRequest(c *gin.Context, opts RouteOptions, fallbackKe
 	allowRemote := envSecret != ""
 	if opts.Config != nil && opts.Config.RemoteManagement.AllowRemote {
 		allowRemote = true
+	}
+	if opts.ManagementKeyProvider != nil {
+		key, remote, err := opts.ManagementKeyProvider()
+		if err != nil {
+			return false, http.StatusInternalServerError, "read management config failed"
+		}
+		configuredKey = strings.TrimSpace(key)
+		allowRemote = envSecret != "" || remote
 	}
 
 	clientIP := c.ClientIP()

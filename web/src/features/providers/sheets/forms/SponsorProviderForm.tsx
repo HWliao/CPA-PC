@@ -16,10 +16,13 @@ import {
 } from '@/components/ui/icons';
 import { hasDisableAllModelsRule } from '@/components/providers/utils';
 import { maskApiKey } from '@/utils/format';
-import type { ModelInfo } from '@/utils/models';
+import { MAX_CREDENTIAL_WEIGHT } from '@/utils/credentialWeight';
+import { mergeDiscoveredModels } from '../../modelEntries';
 import type { ApiKeyFunUsageSummary } from '../../sponsor';
+import { isSponsorPartialMutationError } from '../../sponsorMutationRecovery';
 import {
   discoveryBrandForSponsorProtocol,
+  getSponsorAggregationConflict,
   getSponsorProviderDefinition,
   sponsorProtocolI18nKey,
   sponsorProtocolModelI18nKey,
@@ -36,9 +39,16 @@ import type {
   SponsorProviderRaw,
 } from '../../types';
 import { ModelDiscoveryPanel } from './ModelDiscoveryPanel';
+import { ModelEntriesEditor } from './ModelEntriesEditor';
 import { useModelDiscovery, type UseModelDiscoveryResult } from './useModelDiscovery';
 import { useSponsorUsageCheck, type SponsorUsageMessages } from './useSponsorUsageCheck';
 import styles from './sharedForm.module.scss';
+import { readRuntimePolicy, validateRuntimePolicy } from '../../runtimePolicy';
+import { readModelOptions, validateModelOptions } from '../../modelOptions';
+import type { ModelAlias } from '@/types';
+import { RuntimePolicyEditor } from './RuntimePolicyEditor';
+import { ProviderBehaviorEditor } from './ProviderBehaviorEditor';
+import { pickProviderBehavior } from '../../providerBehavior';
 
 interface SponsorProviderFormProps {
   brand?: SponsorProviderBrand;
@@ -54,6 +64,7 @@ interface SponsorProviderFormProps {
 interface SponsorModelSectionProps {
   label: string;
   description: string;
+  protocol: SponsorProtocol;
   models: ModelEntryInput[];
   discovery: UseModelDiscoveryResult;
   mutating: boolean;
@@ -86,8 +97,10 @@ const emptySponsorKeyEntry = (
   proxyUrl: '',
   prefix: '',
   disabled: false,
-  disableCooling: false,
+  disableCooling: undefined,
+  runtimePolicy: readRuntimePolicy(),
   priority: undefined,
+  weight: undefined,
   models: [emptyModel()],
 });
 
@@ -98,8 +111,9 @@ const emptySponsorForm = (definition: SponsorProviderDefinition): ProviderEntryF
   proxyUrl: '',
   prefix: '',
   disabled: false,
-  disableCooling: false,
+  disableCooling: undefined,
   priority: undefined,
+  weight: undefined,
   models: [],
   headers: [],
   excludedModelsText: '',
@@ -134,17 +148,17 @@ const isHealthyUsageSummary = (summary: ApiKeyFunUsageSummary): boolean => {
   return summary.isValid && (!normalizedStatus || normalizedStatus === 'active');
 };
 
-const modelsFromConfig = (
-  models:
-    | Array<{ name?: string; alias?: string; priority?: number; testModel?: string }>
-    | undefined
-): ModelEntryInput[] =>
+const modelsFromConfig = (models: ModelAlias[] | undefined): ModelEntryInput[] =>
   models?.length
     ? models.map((model) => ({
+        sourceIndex: model.sourceIndex,
         name: model.name ?? '',
         alias: model.alias ?? '',
         priority: model.priority,
         testModel: model.testModel,
+        image: model.image === true,
+        thinkingJson: model.thinking ? JSON.stringify(model.thinking, null, 2) : '',
+        ...readModelOptions(model),
       }))
     : [emptyModel()];
 
@@ -162,8 +176,11 @@ const sponsorEntryFromProviderKey = (
   proxyUrl: config.proxyUrl ?? '',
   prefix: config.prefix ?? '',
   disabled: hasDisableAllModelsRule(config.excludedModels),
-  disableCooling: config.disableCooling === true,
+  disableCooling: config.disableCooling,
+  runtimePolicy: readRuntimePolicy(config),
+  ...pickProviderBehavior(config, protocol),
   priority: config.priority,
+  weight: config.weight,
   models: modelsFromConfig(config.models),
 });
 
@@ -179,8 +196,11 @@ const sponsorEntryFromOpenAI = (
     proxyUrl: firstEntry?.proxyUrl ?? '',
     prefix: config.prefix ?? '',
     disabled: config.disabled === true,
-    disableCooling: config.disableCooling === true,
+    disableCooling: config.disableCooling,
+    runtimePolicy: readRuntimePolicy(config),
+    ...pickProviderBehavior(config, 'openaiCompatibility'),
     priority: config.priority,
+    weight: firstEntry?.weight,
     models: modelsFromConfig(config.models),
   };
 };
@@ -201,42 +221,10 @@ const sponsorKeyEntriesFromRaw = (
   return entries.length ? entries : [emptySponsorKeyEntry(definition)];
 };
 
-const applyDiscoveredModels = (
-  currentModels: ModelEntryInput[],
-  incoming: ModelInfo[]
-): ModelEntryInput[] => {
-  if (!incoming.length) return currentModels;
-  const seen = new Set<string>();
-  const next: ModelEntryInput[] = [];
-  currentModels.forEach((entry) => {
-    const trimmed = (entry.name ?? '').trim();
-    if (trimmed) {
-      if (seen.has(trimmed)) return;
-      seen.add(trimmed);
-    }
-    next.push(entry);
-  });
-  const placeholderIdx = next.findIndex(
-    (entry) => !(entry.name ?? '').trim() && !(entry.alias ?? '').trim()
-  );
-  if (placeholderIdx !== -1) {
-    next.splice(placeholderIdx, 1);
-  }
-  incoming.forEach((info) => {
-    const trimmed = info.name.trim();
-    if (!trimmed || seen.has(trimmed)) return;
-    seen.add(trimmed);
-    next.push({
-      name: trimmed,
-      alias: (info.alias ?? '').trim(),
-    });
-  });
-  return next.length ? next : [emptyModel()];
-};
-
 function SponsorModelSection({
   label,
   description,
+  protocol,
   models,
   discovery,
   mutating,
@@ -259,17 +247,6 @@ function SponsorModelSection({
     if (!discovery.loading && !discovery.hasFetched) {
       void discovery.fetch();
     }
-  };
-
-  const updateModelEntry = (modelIndex: number, patch: Partial<ModelEntryInput>) => {
-    onChange(
-      modelsList.map((item, itemIndex) => (itemIndex === modelIndex ? { ...item, ...patch } : item))
-    );
-  };
-
-  const removeModelEntry = (modelIndex: number) => {
-    const next = modelsList.filter((_, itemIndex) => itemIndex !== modelIndex);
-    onChange(next.length ? next : [emptyModel()]);
   };
 
   return (
@@ -295,46 +272,31 @@ function SponsorModelSection({
             hasFetched={discovery.hasFetched}
             existingNames={existingModelNames}
             mutating={mutating}
-            onApply={(picked) => onChange(applyDiscoveredModels(modelsList, picked))}
+            onApply={(picked) => onChange(mergeDiscoveredModels(modelsList, picked))}
             onReload={() => void discovery.fetch()}
             onClose={() => setDiscoveryOpen(false)}
           />
         ) : null}
-        {modelsList.map((entry, modelIndex) => (
-          <div key={modelIndex} className={styles.modelAliasRow}>
-            <input
-              className={styles.input}
-              placeholder="model-name"
-              value={entry.name}
-              onChange={(event) => updateModelEntry(modelIndex, { name: event.target.value })}
-              disabled={mutating}
-            />
-            <input
-              className={styles.input}
-              placeholder="alias (optional)"
-              value={entry.alias ?? ''}
-              onChange={(event) => updateModelEntry(modelIndex, { alias: event.target.value })}
-              disabled={mutating}
-            />
-            <button
-              type="button"
-              className={styles.removeBtn}
-              disabled={mutating || modelsList.length <= 1}
-              onClick={() => removeModelEntry(modelIndex)}
-            >
-              <IconX size={12} />
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className={styles.addBtn}
-          disabled={mutating}
-          onClick={() => onChange([...modelsList, emptyModel()])}
-        >
-          <IconPlus size={12} />
-          <span>{t('providersPage.form.addModel')}</span>
-        </button>
+        <ModelEntriesEditor
+          providerBrand={protocol === 'openai' ? 'openaiCompatibility' : protocol}
+          models={modelsList}
+          supportsImage={protocol === 'openai'}
+          supportsThinking
+          mutating={mutating}
+          removeDisabled={modelsList.length <= 1}
+          onUpdate={(modelIndex, patch) =>
+            onChange(
+              modelsList.map((item, itemIndex) =>
+                itemIndex === modelIndex ? { ...item, ...patch } : item
+              )
+            )
+          }
+          onAdd={() => onChange([...modelsList, emptyModel()])}
+          onRemove={(modelIndex) => {
+            const next = modelsList.filter((_, itemIndex) => itemIndex !== modelIndex);
+            onChange(next.length ? next : [emptyModel()]);
+          }}
+        />
       </div>
     </Collapsible>
   );
@@ -405,17 +367,18 @@ function SponsorKeyEntryCard({
   const discovery = useModelDiscovery({
     brand: discoveryBrandForSponsorProtocol(entry.protocol),
     baseUrl: endpointUrl,
+    proxyUrl: entry.proxyUrl,
     formHeaders: discoveryHeaders,
     apiKey: entry.apiKey,
     fallbackApiKey: entry.existingApiKey,
     apiKeyEntries: entry.protocol === 'openai' ? openaiDiscoveryEntries : undefined,
   });
-  const protocolOptions = definition.protocols.filter(
-    (protocol) => protocol === entry.protocol || !usedProtocols.has(protocol)
-  ).map((protocol) => ({
-    value: protocol,
-    label: t(`providersPage.sponsor.protocols.${sponsorProtocolI18nKey(protocol)}`),
-  }));
+  const protocolOptions = definition.protocols
+    .filter((protocol) => protocol === entry.protocol || !usedProtocols.has(protocol))
+    .map((protocol) => ({
+      value: protocol,
+      label: t(`providersPage.sponsor.protocols.${sponsorProtocolI18nKey(protocol)}`),
+    }));
 
   const updateEntry = (patch: Partial<SponsorKeyEntryInput>) => {
     onChange({ ...entry, ...patch });
@@ -696,6 +659,28 @@ function SponsorKeyEntryCard({
             </div>
           </div>
 
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor={`${formId}-group-${index}-weight`}>
+              {t('providersPage.form.weight')}
+            </label>
+            <input
+              id={`${formId}-group-${index}-weight`}
+              type="number"
+              step="1"
+              max={MAX_CREDENTIAL_WEIGHT}
+              className={styles.input}
+              value={entry.weight ?? ''}
+              placeholder="1"
+              onChange={(event) =>
+                updateEntry({
+                  weight: event.target.value === '' ? undefined : Number(event.target.value),
+                })
+              }
+              disabled={mutating}
+            />
+            <span className={styles.labelHint}>{t('providersPage.form.weightHint')}</span>
+          </div>
+
           <label className={styles.checkboxRow}>
             <input
               type="checkbox"
@@ -710,23 +695,22 @@ function SponsorKeyEntryCard({
             </span>
           </label>
 
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              className={styles.checkboxBox}
-              checked={entry.disableCooling ?? false}
-              disabled={mutating}
-              onChange={(event) => updateEntry({ disableCooling: event.target.checked })}
-            />
-            <span className={styles.checkboxText}>
-              <span>{t('providersPage.form.disableCooling')}</span>
-              <small>{t('providersPage.form.disableCoolingHint')}</small>
-            </span>
-          </label>
+          <ProviderBehaviorEditor
+            brand={entry.protocol === 'openai' ? 'openaiCompatibility' : entry.protocol}
+            value={entry}
+            onChange={updateEntry}
+            disabled={mutating}
+          />
+          <RuntimePolicyEditor
+            value={entry.runtimePolicy ?? readRuntimePolicy()}
+            onChange={(runtimePolicy) => updateEntry({ runtimePolicy })}
+            disabled={mutating}
+          />
 
           <SponsorModelSection
             label={t(`providersPage.sponsor.protocolModels.${modelKey}`)}
             description={t(`providersPage.sponsor.protocolModelHints.${modelKey}`)}
+            protocol={entry.protocol}
             models={entry.models}
             discovery={discovery}
             mutating={mutating}
@@ -811,6 +795,13 @@ export function SponsorProviderForm({
   };
 
   const validateEntries = (): string | null => {
+    for (const entry of entries) {
+      const modelError = validateModelOptions(entry.models);
+      if (modelError) return t(modelError);
+      if (!entry.runtimePolicy) continue;
+      const policyError = validateRuntimePolicy(entry.runtimePolicy);
+      if (policyError) return t(policyError);
+    }
     if (!entries.length) {
       return mode === 'edit' ? null : t('providersPage.sponsor.validation.keyRequired');
     }
@@ -821,6 +812,16 @@ export function SponsorProviderForm({
     const protocolSet = new Set(entries.map((entry) => entry.protocol));
     if (protocolSet.size !== entries.length) {
       return t('providersPage.sponsor.validation.protocolDuplicate');
+    }
+    if (
+      entries.some((entry) => entry.weight !== undefined && !Number.isSafeInteger(entry.weight))
+    ) {
+      return t('providersPage.form.validation.weightInteger');
+    }
+    if (
+      entries.some((entry) => entry.weight !== undefined && entry.weight > MAX_CREDENTIAL_WEIGHT)
+    ) {
+      return t('providersPage.form.validation.weightMax', { max: MAX_CREDENTIAL_WEIGHT });
     }
     return null;
   };
@@ -836,13 +837,31 @@ export function SponsorProviderForm({
       setError(null);
       await onSubmit({ ...form, sponsorKeyEntries: entries });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(
+        isSponsorPartialMutationError(err)
+          ? t('providersPage.sponsor.partialMutationWarning')
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      );
     }
   };
 
   const formClassName = [styles.form, variant === 'quickStart' ? styles.quickStartForm : '']
     .filter(Boolean)
     .join(' ');
+  const aggregationConflict =
+    mode === 'edit'
+      ? getSponsorAggregationConflict(getSponsorRaw(resource, definition.brand))
+      : null;
+
+  if (aggregationConflict) {
+    return (
+      <form id={formId} className={formClassName} onSubmit={(event) => event.preventDefault()}>
+        <div className={styles.errorBox}>{t('providersPage.sponsor.aggregationConflict')}</div>
+      </form>
+    );
+  }
 
   return (
     <form id={formId} className={formClassName} onSubmit={handleSubmit} noValidate>

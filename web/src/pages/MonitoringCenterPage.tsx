@@ -3131,9 +3131,8 @@ export function MonitoringCenterPage() {
           <strong>{monitoringUnavailableTitle}</strong>
           <span>{monitoringUnavailableBody}</span>
           <Link
-            to="/config"
+            to="/monitoring/settings"
             className={styles.configLink}
-            onClick={() => localStorage.setItem('config-management:tab', 'manager')}
           >
             {t('monitoring.open_manager_config')}
           </Link>

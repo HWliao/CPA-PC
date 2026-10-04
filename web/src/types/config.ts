@@ -4,7 +4,6 @@
  */
 
 import type { GeminiKeyConfig, ProviderKeyConfig, OpenAIProviderConfig } from './provider';
-import type { AmpcodeConfig } from './ampcode';
 
 export interface QuotaExceededConfig {
   switchProject?: boolean;
@@ -26,13 +25,13 @@ export interface AuthPoolCleanConfig {
 }
 
 export interface Config {
+  clean?: AuthPoolCleanConfig;
+  usageStatisticsEnabled?: boolean;
+  providerGroups?: Record<string, unknown>;
   debug?: boolean;
   proxyUrl?: string;
   requestRetry?: number;
   quotaExceeded?: QuotaExceededConfig;
-  clean?: AuthPoolCleanConfig;
-  usageStatisticsEnabled?: boolean;
-  redisUsageQueueRetentionSeconds?: number;
   requestLog?: boolean;
   loggingToFile?: boolean;
   logsMaxTotalSizeMb?: number;
@@ -40,9 +39,11 @@ export interface Config {
   forceModelPrefix?: boolean;
   routingStrategy?: string;
   apiKeys?: string[];
-  ampcode?: AmpcodeConfig;
   geminiApiKeys?: GeminiKeyConfig[];
+  interactionsApiKeys?: GeminiKeyConfig[];
   codexApiKeys?: ProviderKeyConfig[];
+  metaApiKeys?: ProviderKeyConfig[];
+  xaiApiKeys?: ProviderKeyConfig[];
   claudeApiKeys?: ProviderKeyConfig[];
   vertexApiKeys?: ProviderKeyConfig[];
   openaiCompatibility?: OpenAIProviderConfig[];
@@ -55,8 +56,6 @@ export type RawConfigSection =
   | 'proxy-url'
   | 'request-retry'
   | 'quota-exceeded'
-  | 'usage-statistics-enabled'
-  | 'redis-usage-queue-retention-seconds'
   | 'request-log'
   | 'logging-to-file'
   | 'logs-max-total-size-mb'
@@ -64,15 +63,12 @@ export type RawConfigSection =
   | 'force-model-prefix'
   | 'routing/strategy'
   | 'api-keys'
-  | 'ampcode'
   | 'gemini-api-key'
+  | 'interactions-api-key'
   | 'codex-api-key'
+  | 'meta-api-key'
+  | 'xai-api-key'
   | 'claude-api-key'
   | 'vertex-api-key'
   | 'openai-compatibility'
   | 'oauth-excluded-models';
-
-export interface ConfigCache {
-  data: Config;
-  timestamp: number;
-}

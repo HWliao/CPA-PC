@@ -9,15 +9,6 @@ import {
   resolveApiKeyFunBaseUrl,
 } from './sponsor';
 import {
-  CODE0_AFFILIATE_URL,
-  CODE0_BASE_URL_OPTIONS,
-  CODE0_DISPLAY_NAME,
-  CODE0_PROTOCOL_LABELS,
-  CODE0_PROVIDER_NAME,
-  getCode0ProtocolUrls,
-  resolveCode0BaseUrl,
-} from './code0';
-import {
   FENNO_AI_AFFILIATE_URL,
   FENNO_AI_BASE_URL_OPTIONS,
   FENNO_AI_DISPLAY_NAME,
@@ -35,7 +26,20 @@ import {
   getQiniuCloudProtocolUrls,
   resolveQiniuCloudBaseUrl,
 } from './qiniuCloud';
-import type { ProviderBrand, SponsorProtocol, SponsorProviderBrand } from './types';
+import {
+  KIMI_BASE_URL_OPTIONS,
+  KIMI_DISPLAY_NAME,
+  KIMI_PROTOCOL_LABELS,
+  KIMI_PROVIDER_NAME,
+  getKimiProtocolUrls,
+  resolveKimiBaseUrl,
+} from './kimi';
+import type {
+  ProviderBrand,
+  SponsorProtocol,
+  SponsorProviderBrand,
+  SponsorProviderRaw,
+} from './types';
 
 export interface SponsorProtocolUrls {
   anthropic: string;
@@ -58,7 +62,7 @@ export interface SponsorProviderDefinition {
   brand: SponsorProviderBrand;
   displayName: string;
   providerName: string;
-  affiliateUrl: string;
+  affiliateUrl?: string;
   dashboardUrl?: string;
   protocols: readonly SponsorProtocol[];
   protocolLabels: readonly string[];
@@ -83,19 +87,6 @@ const SPONSOR_DEFINITIONS: Record<SponsorProviderBrand, SponsorProviderDefinitio
     supportsUsageCheck: true,
     resolveBaseUrl: resolveApiKeyFunBaseUrl,
     getProtocolUrls: getApiKeyFunProtocolUrls,
-  },
-  code0: {
-    brand: 'code0',
-    displayName: CODE0_DISPLAY_NAME,
-    providerName: CODE0_PROVIDER_NAME,
-    affiliateUrl: CODE0_AFFILIATE_URL,
-    protocols: ['openai', 'claude', 'gemini', 'codex'],
-    protocolLabels: CODE0_PROTOCOL_LABELS,
-    defaultProtocol: 'openai',
-    baseUrlOptions: CODE0_BASE_URL_OPTIONS,
-    supportsUsageCheck: false,
-    resolveBaseUrl: resolveCode0BaseUrl,
-    getProtocolUrls: getCode0ProtocolUrls,
   },
   fennoAI: {
     brand: 'fennoAI',
@@ -123,15 +114,48 @@ const SPONSOR_DEFINITIONS: Record<SponsorProviderBrand, SponsorProviderDefinitio
     resolveBaseUrl: resolveQiniuCloudBaseUrl,
     getProtocolUrls: getQiniuCloudProtocolUrls,
   },
+  kimi: {
+    brand: 'kimi',
+    displayName: KIMI_DISPLAY_NAME,
+    providerName: KIMI_PROVIDER_NAME,
+    protocols: ['openai', 'claude', 'codex'],
+    protocolLabels: KIMI_PROTOCOL_LABELS,
+    defaultProtocol: 'openai',
+    baseUrlOptions: KIMI_BASE_URL_OPTIONS,
+    supportsUsageCheck: false,
+    resolveBaseUrl: resolveKimiBaseUrl,
+    getProtocolUrls: getKimiProtocolUrls,
+  },
 };
 
-export const isMultiProtocolSponsorBrand = (
-  brand: ProviderBrand
-): brand is SponsorProviderBrand =>
+export const isMultiProtocolSponsorBrand = (brand: ProviderBrand): brand is SponsorProviderBrand =>
   brand === 'apikeyFun' ||
-  brand === 'code0' ||
   brand === 'fennoAI' ||
-  brand === 'qiniuCloud';
+  brand === 'qiniuCloud' ||
+  brand === 'kimi';
+
+export type SponsorAggregationConflict = 'multiple-configs' | 'multiple-openai-keys';
+
+export const getSponsorAggregationConflict = (
+  raw: SponsorProviderRaw | null | undefined
+): SponsorAggregationConflict | null => {
+  if (!raw) return null;
+  if (
+    raw.openai.length > 1 ||
+    raw.claude.length > 1 ||
+    raw.codex.length > 1 ||
+    raw.gemini.length > 1
+  ) {
+    return 'multiple-configs';
+  }
+
+  const openAIKeyCount = raw.openai.reduce(
+    (count, item) =>
+      count + (item.config.apiKeyEntries ?? []).filter((entry) => entry.apiKey?.trim()).length,
+    0
+  );
+  return openAIKeyCount > 1 ? 'multiple-openai-keys' : null;
+};
 
 export const getSponsorProviderDefinition = (
   brand: SponsorProviderBrand

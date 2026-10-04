@@ -1,16 +1,19 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	sdkconfig "github.com/router-for-me/CLIProxyAPI/v8/sdk/config"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	DefaultConfigFileName  = "config.yaml"
+	CPAConfigFileName      = "cpa-pc.yaml"
 	DefaultHost            = ""
 	DefaultPort            = 8317
 	DefaultManagementKey   = "123456"
@@ -98,17 +101,116 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("read config file %s: %w", resolvedConfigPath, err)
 	}
 
+	v8, err := IsV8Config(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse config file %s: %w", resolvedConfigPath, err)
+	}
 	cfg := Default()
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	managementKeyExplicitlyEmpty := false
+	if v8 {
+		sdkCfg, err := sdkconfig.ParseConfigBytes(data)
+		if err != nil {
+			return nil, fmt.Errorf("parse SDK config file %s: %w", resolvedConfigPath, err)
+		}
+		cfg.Host = sdkCfg.Host
+		cfg.Port = sdkCfg.Port
+		cfg.AuthDir = sdkCfg.AuthDir
+		cfg.APIKeys = sdkCfg.APIKeys
+		cfg.LoggingToFile = sdkCfg.LoggingToFile
+		cfg.RemoteManagement.AllowRemote = sdkCfg.RemoteManagement.AllowRemote
+		cfg.RemoteManagement.DisableControlPanel = sdkCfg.RemoteManagement.DisableControlPanel
+		if sdkCfg.RemoteManagement.SecretKey != "" {
+			cfg.RemoteManagement.SecretKey = sdkCfg.RemoteManagement.SecretKey
+		} else {
+			var doc yaml.Node
+			if err := yaml.Unmarshal(data, &doc); err == nil && len(doc.Content) > 0 {
+				for i := 0; i+1 < len(doc.Content[0].Content); i += 2 {
+					if doc.Content[0].Content[i].Value == "management" {
+						management := doc.Content[0].Content[i+1]
+						for j := 0; j+1 < len(management.Content); j += 2 {
+							if management.Content[j].Value == "secret-key" {
+								managementKeyExplicitlyEmpty = true
+							}
+						}
+					}
+				}
+			}
+		}
+	} else if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config file %s: %w", resolvedConfigPath, err)
 	}
 
+	companionName := CPAConfigFileName
+	if filepath.Base(resolvedConfigPath) == "config.example.yaml" {
+		companionName = "cpa-pc.example.yaml"
+	}
+	companionPath := filepath.Join(filepath.Dir(resolvedConfigPath), companionName)
+	companion, err := os.ReadFile(companionPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read CPA-PC config file %s: %w", companionPath, err)
+		}
+		if v8 {
+			return nil, fmt.Errorf("v8 config requires %s; migrate CPA-PC settings before using v8 config", companionPath)
+		}
+	} else {
+		local := struct {
+			DataDir   string `yaml:"data-dir"`
+			LogsDir   string `yaml:"logs-dir"`
+			StaticDir string `yaml:"static-dir"`
+			Usage     Usage  `yaml:"usage"`
+		}{cfg.DataDir, cfg.LogsDir, cfg.StaticDir, cfg.Usage}
+		decoder := yaml.NewDecoder(bytes.NewReader(companion))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&local); err != nil {
+			return nil, fmt.Errorf("parse CPA-PC config file %s: %w", companionPath, err)
+		}
+		cfg.DataDir, cfg.LogsDir, cfg.StaticDir, cfg.Usage = local.DataDir, local.LogsDir, local.StaticDir, local.Usage
+	}
+
 	cfg.applyDefaults()
+	if managementKeyExplicitlyEmpty {
+		cfg.RemoteManagement.SecretKey = ""
+	}
 	if err := cfg.resolveRuntimePaths(resolvedConfigPath); err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
+}
+
+// IsV8Config reports whether a YAML document contains SDK v8 configuration fields.
+func IsV8Config(data []byte) (bool, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return false, err
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return false, nil
+	}
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key, value := root.Content[i].Value, root.Content[i+1]
+		switch key {
+		case "config-version", "server", "management", "access", "oauth", "observability", "upstream", "credentials", "requests", "multimedia":
+			return true, nil
+		case "api-keys":
+			if value.Kind == yaml.MappingNode {
+				return true, nil
+			}
+		case "routing":
+			if value.Kind != yaml.MappingNode {
+				continue
+			}
+			for j := 0; j+1 < len(value.Content); j += 2 {
+				switch value.Content[j].Value {
+				case "retry", "cooldown", "force-model-prefix":
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 func (cfg Config) ListenAddress() string {

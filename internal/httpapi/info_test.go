@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,7 +176,7 @@ func TestRegisterRoutesServesUsageCharts(t *testing.T) {
 	g := newTestRouter(store)
 
 	const hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	rec := performRequest(g, http.MethodGet, "/v0/management/usage/charts?range=1h&granularity=10m&account=Team%20Codex&apiKeyHash="+hash+"&model=gpt-test", "123456")
+	rec := performRequest(g, http.MethodGet, "/v8/management/cpa-pc/usage/charts?range=1h&granularity=10m&account=Team%20Codex&apiKeyHash="+hash+"&model=gpt-test", "123456")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
@@ -272,13 +273,42 @@ func TestRegisterRoutesRejectsInvalidUsageChartsQuery(t *testing.T) {
 func TestRegisterRoutesRejectsInvalidManagementKey(t *testing.T) {
 	g := newTestRouter(nil)
 
-	for _, path := range []string{"/v0/management/usage", "/v0/management/usage/charts"} {
+	for _, path := range []string{"/v0/management/usage", "/v0/management/usage/charts", "/v8/management/cpa-pc/usage", "/v8/management/cpa-pc/usage/charts"} {
 		t.Run(path, func(t *testing.T) {
 			rec := performRequest(g, http.MethodGet, path, "wrong")
 			if rec.Code != http.StatusUnauthorized {
 				t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 			}
 		})
+	}
+}
+
+func TestV8ManagementRoutesFollowUpdatedManagementKey(t *testing.T) {
+	t.Setenv("MANAGEMENT_PASSWORD", "")
+	key := "old-key"
+	remote := false
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	RegisterRoutesWithOptions(engine, RouteOptions{
+		Info: Info{Version: "test"},
+		ManagementKeyProvider: func() (string, bool, error) {
+			return key, remote, nil
+		},
+	})
+	path := "/v8/management/cpa-pc/usage"
+	if rec := performRequest(engine, http.MethodGet, path, key); rec.Code != http.StatusOK {
+		t.Fatalf("initial management key returned %d", rec.Code)
+	}
+	key = "new-key"
+	if rec := performRequest(engine, http.MethodGet, path, "old-key"); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("stale key returned %d", rec.Code)
+	}
+	if rec := performRequest(engine, http.MethodGet, path, key); rec.Code != http.StatusOK {
+		t.Fatalf("new management key returned %d", rec.Code)
+	}
+	remote = true
+	if rec := performRequestFrom(engine, http.MethodGet, path, key, nil, "203.0.113.10:1234"); rec.Code != http.StatusOK {
+		t.Fatalf("updated remote access returned %d", rec.Code)
 	}
 }
 
@@ -317,12 +347,18 @@ func TestProtectedUsageServiceRoutesAcceptBcryptHashedManagementKey(t *testing.T
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			rec := performRequestWithBody(g, tc.method, tc.path, "123456", tc.body)
-			if rec.Code != http.StatusOK {
-				t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
-			}
-		})
+		paths := []string{tc.path}
+		if strings.HasPrefix(tc.path, "/v0/management/") {
+			paths = append(paths, strings.Replace(tc.path, "/v0/management/", "/v8/management/cpa-pc/", 1))
+		}
+		for _, path := range paths {
+			t.Run(tc.name+path, func(t *testing.T) {
+				rec := performRequestWithBody(g, tc.method, path, "123456", tc.body)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+				}
+			})
+		}
 	}
 }
 
@@ -340,9 +376,11 @@ func TestRegisterRoutesSetupAcceptsBcryptHashedManagementKeyFromBody(t *testing.
 func TestRegisterRoutesRejectsRemoteManagementWhenDisabled(t *testing.T) {
 	g := newTestRouter(nil)
 
-	rec := performRequestFrom(g, http.MethodGet, "/status", "123456", nil, "203.0.113.10:1234")
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	for _, path := range []string{"/status", "/v8/management/cpa-pc/usage"} {
+		rec := performRequestFrom(g, http.MethodGet, path, "123456", nil, "203.0.113.10:1234")
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("%s: status = %d, want %d body=%s", path, rec.Code, http.StatusForbidden, rec.Body.String())
+		}
 	}
 }
 

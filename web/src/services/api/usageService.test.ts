@@ -33,14 +33,14 @@ describe('usageServiceApi.syncModelPrices', () => {
     };
 
     const response = await usageServiceApi.syncModelPrices(
-      'http://127.0.0.1:8317/v0/management',
+      'http://127.0.0.1:8317/v8/management',
       'manage-secret',
       request
     );
 
     expect(response).toBe(syncResponse);
     expect(axios.post).toHaveBeenCalledWith(
-      'http://127.0.0.1:8317/v0/management/model-prices/sync',
+      'http://127.0.0.1:8317/v8/management/cpa-pc/model-prices/sync',
       request,
       expect.objectContaining({
         headers: { Authorization: 'Bearer manage-secret' },

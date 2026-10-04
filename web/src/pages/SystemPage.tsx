@@ -12,13 +12,17 @@ import {
   useModelsStore,
   useThemeStore,
 } from '@/stores';
-import { configApi, cpaPcApi, versionApi, type CpaPcInfo } from '@/services/api';
-import { apiKeysApi } from '@/services/api/apiKeys';
+import { configApi, versionApi } from '@/services/api';
+import { useApiKeysForModels } from '@/hooks/useApiKeysForModels';
+import { formatDateTimeValue } from '@/utils/format';
 import { classifyModels } from '@/utils/models';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
 import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
 import iconGemini from '@/assets/icons/gemini.svg';
 import iconClaude from '@/assets/icons/claude.svg';
+import iconMeta from '@/assets/icons/meta.svg';
+import iconDevinLight from '@/assets/icons/devin.svg';
+import iconDevinDark from '@/assets/icons/devin-dark.svg';
 import iconOpenaiLight from '@/assets/icons/openai-light.svg';
 import iconOpenaiDark from '@/assets/icons/openai-dark.svg';
 import iconQwen from '@/assets/icons/qwen.svg';
@@ -32,11 +36,13 @@ import iconMinimax from '@/assets/icons/minimax.svg';
 import styles from './SystemPage.module.scss';
 
 const MODEL_CATEGORY_ICONS: Record<string, string | { light: string; dark: string }> = {
+  devin: { light: iconDevinLight, dark: iconDevinDark },
   gpt: { light: iconOpenaiLight, dark: iconOpenaiDark },
   claude: iconClaude,
+  meta: iconMeta,
   gemini: iconGemini,
   qwen: iconQwen,
-  kimi: { light: iconKimiLight, dark: iconKimiDark },
+  kimi: { light: iconKimiDark, dark: iconKimiLight },
   glm: iconGlm,
   grok: { light: iconGrok, dark: iconGrokDark },
   deepseek: iconDeepseek,
@@ -69,14 +75,6 @@ const compareVersions = (latest?: string | null, current?: string | null) => {
   return 0;
 };
 
-const formatBuildTime = (value: string | null | undefined, language: string, fallback: string) => {
-  const text = value?.trim();
-  if (!text || text.toLowerCase() === 'unknown') return fallback;
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return text;
-  return date.toLocaleString(language);
-};
-
 export function SystemPage() {
   const { t, i18n } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
@@ -100,11 +98,8 @@ export function SystemPage() {
   const [requestLogDraft, setRequestLogDraft] = useState(false);
   const [requestLogTouched, setRequestLogTouched] = useState(false);
   const [requestLogSaving, setRequestLogSaving] = useState(false);
-  const [checkingAppVersion, setCheckingAppVersion] = useState(false);
   const [checkingVersion, setCheckingVersion] = useState(false);
-  const [cpaPcInfo, setCpaPcInfo] = useState<CpaPcInfo | null>(null);
 
-  const apiKeysCache = useRef<string[]>([]);
   const versionTapCount = useRef(0);
   const versionTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -118,14 +113,9 @@ export function SystemPage() {
   const canEditRequestLog = auth.connectionStatus === 'connected' && Boolean(config);
 
   const appVersion = __APP_VERSION__ || t('system_info.version_unknown');
-  const cpaPcVersion = cpaPcInfo?.version || t('system_info.version_unknown');
-  const currentApiVersion = cpaPcInfo?.cliProxyApi?.version || auth.serverVersion;
-  const apiVersion = currentApiVersion || t('system_info.version_unknown');
-  const buildTime = formatBuildTime(
-    cpaPcInfo?.buildDate || auth.serverBuildDate,
-    i18n.language,
-    t('system_info.version_unknown')
-  );
+  const apiVersion = auth.serverVersion || t('system_info.version_unknown');
+  const buildTime =
+    formatDateTimeValue(auth.serverBuildDate, i18n.language) || t('system_info.version_unknown');
 
   const getIconForCategory = (categoryId: string): string | null => {
     const iconEntry = MODEL_CATEGORY_ICONS[categoryId];
@@ -134,54 +124,7 @@ export function SystemPage() {
     return resolvedTheme === 'dark' ? iconEntry.dark : iconEntry.light;
   };
 
-  const normalizeApiKeyList = (input: unknown): string[] => {
-    if (!Array.isArray(input)) return [];
-    const seen = new Set<string>();
-    const keys: string[] = [];
-
-    input.forEach((item) => {
-      const record =
-        item !== null && typeof item === 'object' && !Array.isArray(item)
-          ? (item as Record<string, unknown>)
-          : null;
-      const value =
-        typeof item === 'string'
-          ? item
-          : record
-            ? (record['api-key'] ?? record['apiKey'] ?? record.key ?? record.Key)
-            : '';
-      const trimmed = String(value ?? '').trim();
-      if (!trimmed || seen.has(trimmed)) return;
-      seen.add(trimmed);
-      keys.push(trimmed);
-    });
-
-    return keys;
-  };
-
-  const resolveApiKeysForModels = useCallback(async () => {
-    if (apiKeysCache.current.length) {
-      return apiKeysCache.current;
-    }
-
-    const configKeys = normalizeApiKeyList(config?.apiKeys);
-    if (configKeys.length) {
-      apiKeysCache.current = configKeys;
-      return configKeys;
-    }
-
-    try {
-      const list = await apiKeysApi.list();
-      const normalized = normalizeApiKeyList(list);
-      if (normalized.length) {
-        apiKeysCache.current = normalized;
-      }
-      return normalized;
-    } catch (err) {
-      console.warn('Auto loading API keys for models failed:', err);
-      return [];
-    }
-  }, [config?.apiKeys]);
+  const resolveApiKeysForModels = useApiKeysForModels();
 
   const fetchModels = async ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) => {
     if (auth.connectionStatus !== 'connected') {
@@ -197,13 +140,9 @@ export function SystemPage() {
       return;
     }
 
-    if (forceRefresh) {
-      apiKeysCache.current = [];
-    }
-
     setModelStatus({ type: 'muted', message: t('system_info.models_loading') });
     try {
-      const apiKeys = await resolveApiKeysForModels();
+      const apiKeys = await resolveApiKeysForModels({ force: forceRefresh });
       const primaryKey = apiKeys[0];
       const list = await fetchModelsFromStore(auth.apiBase, primaryKey, forceRefresh);
       const hasModels = list.length > 0;
@@ -296,48 +235,13 @@ export function SystemPage() {
     }
   };
 
-  const handleAppVersionCheck = useCallback(async () => {
-    setCheckingAppVersion(true);
-    try {
-      const data = await versionApi.checkManagerLatest();
-      const latestRaw = data?.tag_name ?? data?.name ?? data?.latest_version ?? data?.latest ?? '';
-      const latest = typeof latestRaw === 'string' ? latestRaw : String(latestRaw ?? '');
-      const comparison = compareVersions(latest, __APP_VERSION__);
-
-      if (!latest) {
-        showNotification(t('system_info.manager_version_check_error'), 'error');
-        return;
-      }
-
-      if (comparison === null) {
-        showNotification(t('system_info.manager_version_current_missing'), 'warning');
-        return;
-      }
-
-      if (comparison > 0) {
-        showNotification(
-          t('system_info.manager_version_update_available', { version: latest }),
-          'warning'
-        );
-      } else {
-        showNotification(t('system_info.manager_version_is_latest'), 'success');
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-      const suffix = message ? `: ${message}` : '';
-      showNotification(`${t('system_info.manager_version_check_error')}${suffix}`, 'error');
-    } finally {
-      setCheckingAppVersion(false);
-    }
-  }, [showNotification, t]);
-
   const handleVersionCheck = useCallback(async () => {
     setCheckingVersion(true);
     try {
       const data = await versionApi.checkLatest();
       const latestRaw = data?.['latest-version'] ?? data?.latest_version ?? data?.latest ?? '';
       const latest = typeof latestRaw === 'string' ? latestRaw : String(latestRaw ?? '');
-      const comparison = compareVersions(latest, currentApiVersion);
+      const comparison = compareVersions(latest, auth.serverVersion);
 
       if (!latest) {
         showNotification(t('system_info.version_check_error'), 'error');
@@ -362,34 +266,13 @@ export function SystemPage() {
     } finally {
       setCheckingVersion(false);
     }
-  }, [currentApiVersion, showNotification, t]);
+  }, [auth.serverVersion, showNotification, t]);
 
   useEffect(() => {
     fetchConfig().catch(() => {
       // ignore
     });
   }, [fetchConfig]);
-
-  useEffect(() => {
-    if (auth.connectionStatus !== 'connected' || !auth.apiBase) {
-      setCpaPcInfo(null);
-      return;
-    }
-
-    let cancelled = false;
-    cpaPcApi
-      .getInfo(auth.apiBase)
-      .then((info) => {
-        if (!cancelled) setCpaPcInfo(info);
-      })
-      .catch(() => {
-        if (!cancelled) setCpaPcInfo(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [auth.apiBase, auth.connectionStatus]);
 
   useEffect(() => {
     if (requestLogModalOpen && !requestLogTouched) {
@@ -421,44 +304,16 @@ export function SystemPage() {
           </div>
 
           <div className={styles.aboutInfoGrid}>
-            <div
+            <button
+              type="button"
               className={`${styles.infoTile} ${styles.tapTile}`}
-              role="button"
-              tabIndex={0}
               onClick={handleInfoVersionTap}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  handleInfoVersionTap();
-                }
-              }}
             >
               <div className={styles.tileHeader}>
                 <div className={styles.tileLabel}>{t('footer.version')}</div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={styles.tileAction}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleAppVersionCheck();
-                  }}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  loading={checkingAppVersion}
-                  title={t('system_info.version_check_button')}
-                  aria-label={t('system_info.version_check_button')}
-                >
-                  {t('system_info.version_check_button')}
-                </Button>
               </div>
               <div className={styles.tileValue}>{appVersion}</div>
-            </div>
-
-            <div className={styles.infoTile}>
-              <div className={styles.tileLabel}>{t('footer.cpa_pc_version')}</div>
-              <div className={styles.tileValue}>{cpaPcVersion}</div>
-            </div>
+            </button>
 
             <div className={styles.infoTile}>
               <div className={styles.tileHeader}>
@@ -514,7 +369,7 @@ export function SystemPage() {
             </a>
 
             <a
-              href="https://github.com/seakee/CPA-Manager"
+              href="https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
               target="_blank"
               rel="noopener noreferrer"
               className={styles.linkCard}

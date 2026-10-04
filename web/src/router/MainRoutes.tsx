@@ -1,25 +1,31 @@
 import { Navigate, useRoutes, type Location } from 'react-router-dom';
-import { DashboardPage } from '@/pages/DashboardPage';
+import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProvidersWorkbenchPage } from '@/features/providers/ProvidersWorkbenchPage';
-import { AuthFilesPage } from '@/pages/AuthFilesPage';
+import { AuthFilesPage } from '@/features/authFiles/AuthFilesPage';
 import { AuthFilesOAuthExcludedEditPage } from '@/pages/AuthFilesOAuthExcludedEditPage';
 import { AuthFilesOAuthModelAliasEditPage } from '@/pages/AuthFilesOAuthModelAliasEditPage';
 import { OAuthPage } from '@/pages/OAuthPage';
-import { QuotaPage } from '@/pages/QuotaPage';
+import { QuotaPage } from '@/features/quota/QuotaPage';
 import { PluginResourcePage } from '@/features/plugins/PluginResourcePage';
 import { PluginsPage } from '@/features/plugins/PluginsPage';
 import { PluginStorePage } from '@/features/plugins/PluginStorePage';
-import { MonitoringCenterPage } from '@/pages/MonitoringCenterPage';
-import { CodexInspectionPage } from '@/pages/CodexInspectionPage';
-import { MonitoringChartsPage } from '@/pages/MonitoringChartsPage';
-import { ConfigPage } from '@/pages/ConfigPage';
-import { LogsPage } from '@/pages/LogsPage';
+import { ConfigPage } from '@/features/config/ConfigPage';
+import { LogsPage } from '@/features/logs/LogsPage';
 import { SystemPage } from '@/pages/SystemPage';
+import { MonitoringCenterPage } from '@/pages/MonitoringCenterPage';
+import { MonitoringChartsPage } from '@/pages/MonitoringChartsPage';
+import { MonitoringSettingsPage } from '@/features/monitoring/MonitoringSettingsPage';
+import { CodexInspectionPage } from '@/pages/CodexInspectionPage';
 import { useAuthStore } from '@/stores';
 
-// Exported for route registration tests; the runtime entry point remains MainRoutes.
-// eslint-disable-next-line react-refresh/only-export-components
 export const mainRoutes = [
+  { path: '/monitoring', element: <MonitoringCenterPage /> },
+  { path: '/monitoring/charts', element: <MonitoringChartsPage /> },
+  { path: '/monitoring/settings', element: <MonitoringSettingsPage /> },
+  { path: '/monitoring/codex-inspection', element: <CodexInspectionPage /> },
+];
+
+const createMainRoutes = (supportsPlugin: boolean) => [
   { path: '/', element: <DashboardPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/settings', element: <Navigate to="/config" replace /> },
@@ -33,33 +39,24 @@ export const mainRoutes = [
   { path: '/auth-files/oauth-model-alias', element: <AuthFilesOAuthModelAliasEditPage /> },
   { path: '/oauth', element: <OAuthPage /> },
   { path: '/quota', element: <QuotaPage /> },
-  { path: '/monitoring', element: <MonitoringCenterPage /> },
-  { path: '/monitoring/charts', element: <MonitoringChartsPage /> },
-  { path: '/monitoring/codex-inspection', element: <CodexInspectionPage /> },
+  ...mainRoutes,
+  ...(supportsPlugin
+    ? [
+        { path: '/plugin-pages/:pluginId/:menuIndex', element: <PluginResourcePage /> },
+        { path: '/plugins', element: <PluginsPage /> },
+        { path: '/plugin-store', element: <PluginStorePage /> },
+        { path: '/plugins/*', element: <Navigate to="/plugins" replace /> },
+      ]
+    : [
+        { path: '/plugin-pages/*', element: <Navigate to="/" replace /> },
+        { path: '/plugins/*', element: <Navigate to="/" replace /> },
+        { path: '/plugin-store', element: <Navigate to="/" replace /> },
+      ]),
   { path: '/config', element: <ConfigPage /> },
   { path: '/logs', element: <LogsPage /> },
   { path: '/system', element: <SystemPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];
-
-const pluginRoutes = [
-  { path: '/plugin-pages/:pluginId/:menuIndex', element: <PluginResourcePage /> },
-  { path: '/plugins', element: <PluginsPage /> },
-  { path: '/plugin-store', element: <PluginStorePage /> },
-  { path: '/plugins/*', element: <Navigate to="/plugins" replace /> },
-];
-
-const pluginFallbackRoutes = [
-  { path: '/plugin-pages/*', element: <Navigate to="/" replace /> },
-  { path: '/plugins/*', element: <Navigate to="/" replace /> },
-  { path: '/plugin-store', element: <Navigate to="/" replace /> },
-];
-
-const createMainRoutes = (supportsPlugin: boolean) => {
-  const catchAll = mainRoutes[mainRoutes.length - 1];
-  const baseRoutes = mainRoutes.slice(0, -1);
-  return [...baseRoutes, ...(supportsPlugin ? pluginRoutes : pluginFallbackRoutes), catchAll];
-};
 
 export function MainRoutes({ location }: { location?: Location }) {
   const supportsPlugin = useAuthStore((state) => state.supportsPlugin);

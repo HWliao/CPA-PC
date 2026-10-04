@@ -9,24 +9,28 @@ import (
 )
 
 func TestBuildInfoHeaderMiddlewareOverridesManagementHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	router.Use(buildInfoHeaderMiddleware("2026-05-22T00:00:00Z"))
-	router.GET("/v0/management/config", func(c *gin.Context) {
-		c.Header(cpaVersionHeader, "dev")
-		c.Header(cpaBuildDateHeader, "unknown")
-		c.JSON(http.StatusOK, gin.H{"ok": true})
-	})
+	for _, path := range []string{"/v0/management/config", "/v8/management/config"} {
+		t.Run(path, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(buildInfoHeaderMiddleware("2026-05-22T00:00:00Z"))
+			router.GET(path, func(c *gin.Context) {
+				c.Header(cpaVersionHeader, "dev")
+				c.Header(cpaBuildDateHeader, "unknown")
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+			})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/v0/management/config", nil)
-	router.ServeHTTP(rec, req)
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			router.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get(cpaVersionHeader); got != resolveCLIProxyAPIVersion() {
-		t.Fatalf("%s = %q, want %q", cpaVersionHeader, got, resolveCLIProxyAPIVersion())
-	}
-	if got := rec.Header().Get(cpaBuildDateHeader); got != "2026-05-22T00:00:00Z" {
-		t.Fatalf("%s = %q, want %q", cpaBuildDateHeader, got, "2026-05-22T00:00:00Z")
+			if got := rec.Header().Get(cpaVersionHeader); got != resolveCLIProxyAPIVersion() {
+				t.Fatalf("%s = %q, want %q", cpaVersionHeader, got, resolveCLIProxyAPIVersion())
+			}
+			if got := rec.Header().Get(cpaBuildDateHeader); got != "2026-05-22T00:00:00Z" {
+				t.Fatalf("%s = %q, want %q", cpaBuildDateHeader, got, "2026-05-22T00:00:00Z")
+			}
+		})
 	}
 }
 

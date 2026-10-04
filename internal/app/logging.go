@@ -144,6 +144,9 @@ func configureEmbeddedLogLevel(debugEnabled bool) {
 }
 
 func embeddedLogDirectory(cfg *pcconfig.Config) string {
+	if cfg != nil && strings.TrimSpace(cfg.Runtime.LogsDir) != "" {
+		return cfg.Runtime.LogsDir
+	}
 	if base := embeddedWritablePath(); base != "" {
 		return filepath.Join(base, "logs")
 	}

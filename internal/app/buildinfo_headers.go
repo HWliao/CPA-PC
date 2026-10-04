@@ -17,7 +17,8 @@ func buildInfoHeaderMiddleware(buildDate string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if path != "/v0/management" && !strings.HasPrefix(path, "/v0/management/") {
+		if path != "/v0/management" && !strings.HasPrefix(path, "/v0/management/") &&
+			path != "/v8/management" && !strings.HasPrefix(path, "/v8/management/") {
 			c.Next()
 			return
 		}
