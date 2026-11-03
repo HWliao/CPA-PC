@@ -173,6 +173,34 @@ func TestMigrateConfigReportsUnmappedSDKSectionsBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestMigrateConfigDoesNotTreatKnownLegacySectionsAsUnmapped(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	content := []byte(`# streaming:
+#   keepalive-seconds: 0
+streaming:
+  keepalive-seconds: 15
+# codex-header-defaults:
+codex-header-defaults:
+  user-agent: "codex-test"
+claude-api-key: []
+codex-api-key: []
+openai-compatibility: []
+`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := PreviewConfigMigration(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.UnknownSections) != 0 {
+		t.Fatalf("known SDK sections flagged as unknown: %v", preview.UnknownSections)
+	}
+	if preview.SDKSettingsChanged {
+		t.Fatal("migration changed effective SDK settings")
+	}
+}
+
 func TestExampleConfigUsesV8WithCompanion(t *testing.T) {
 	example, err := os.ReadFile(filepath.Join("..", "..", "config.example.yaml"))
 	if err != nil {

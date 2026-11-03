@@ -206,10 +206,22 @@ func unmappedSections(original, migrated []byte) []string {
 	if yaml.Unmarshal(original, &oldDoc) != nil || len(oldDoc.Content) == 0 {
 		return nil
 	}
+	knownSDKRoots := make(map[string]bool)
+	for _, typ := range []reflect.Type{reflect.TypeOf(sdkconfig.Config{}), reflect.TypeOf(sdkconfig.SDKConfig{})} {
+		for i := 0; i < typ.NumField(); i++ {
+			name, _, _ := strings.Cut(typ.Field(i).Tag.Get("yaml"), ",")
+			if name != "" && name != "-" {
+				knownSDKRoots[name] = true
+			}
+		}
+	}
 	comments := strings.Split(string(migrated), "\n")
 	var unknown []string
 	for i := 0; i+1 < len(oldDoc.Content[0].Content); i += 2 {
 		key := oldDoc.Content[0].Content[i].Value
+		if knownSDKRoots[key] {
+			continue
+		}
 		switch key {
 		case "data-dir", "logs-dir", "static-dir", "usage":
 			continue
