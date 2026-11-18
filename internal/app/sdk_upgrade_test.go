@@ -24,10 +24,22 @@ server:
   port: 18317
   max-request-body-bytes: 4096
   response-compression: {enabled: false}
+  shutdown-timeout: 9
+  kv-store: {disabled: true, path: "custom-kv.db"}
 management: {secret-key: "test-management-key"}
 oauth: {auth-dir: "./auth"}
-requests: {tls-handshake-timeout-seconds: 12}
-routing: {session-affinity-rebind-on: "quota"}
+requests:
+  tls-handshake-timeout-seconds: 12
+  payload:
+    replace:
+      - models: [{name: "*", protocol: "codex"}]
+        target: {paths: ["metadata.description"]}
+        replacements:
+          - pattern: '(?i)secret'
+            replacement: ""
+routing: {session-affinity: true, session-affinity-rebind-on: "never"}
+upstream:
+  claude: {server-side-fallback: true}
 client:
   claude: {show-codex-commentary: true}
 `)
@@ -50,9 +62,21 @@ client:
 			t.Fatal(err)
 		}
 		if sdkCfg.MaxRequestBodyBytes != 4096 || sdkCfg.EffectiveResponseCompression().IsEnabled() ||
-			sdkCfg.TLSHandshakeTimeoutSeconds != 12 || sdkCfg.Routing.SessionAffinityRebindOn != "quota" ||
+			sdkCfg.TLSHandshakeTimeoutSeconds != 12 || sdkCfg.Routing.SessionAffinityRebindOn != "never" ||
 			!sdkCfg.Client.Claude.ShowCodexCommentary {
 			t.Fatal("CPA-PC did not preserve the configured SDK settings")
+		}
+		if sdkCfg.ShutdownTimeoutSeconds != 9 || !sdkCfg.KVStore.Disabled || sdkCfg.KVStore.Path != "custom-kv.db" ||
+			!sdkCfg.Routing.SessionAffinity || !sdkCfg.Claude.ServerSideFallback {
+			t.Fatal("CPA-PC did not preserve the SDK v8.0.77 settings")
+		}
+		if len(sdkCfg.Payload.Replace) != 1 || len(sdkCfg.Payload.Replace[0].Target.Paths) != 1 ||
+			sdkCfg.Payload.Replace[0].Target.Paths[0] != "metadata.description" || len(sdkCfg.Payload.Replace[0].Replacements) != 1 {
+			t.Fatal("CPA-PC did not preserve the payload replacement rule")
+		}
+		replacement := sdkCfg.Payload.Replace[0].Replacements[0]
+		if value, ok := replacement["replacement"]; !ok || value != "" || replacement["pattern"] != "(?i)secret" {
+			t.Fatal("CPA-PC did not preserve the empty regex replacement")
 		}
 		if cfg.Usage.Enabled || cfg.Runtime.UsageDBPath != filepath.Join(dir, "state", "usage.sqlite") {
 			t.Fatal("CPA-PC companion settings changed")

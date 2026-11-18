@@ -54,6 +54,9 @@ remote-management:
 	if cpaCfg.AuthDir != filepath.Join(dir, "auths") {
 		t.Fatalf("AuthDir = %q, want %q", cpaCfg.AuthDir, filepath.Join(dir, "auths"))
 	}
+	if cpaCfg.KVStore.Disabled || cpaCfg.EffectiveKVStorePath() != filepath.Join(dir, "auths", "kv.db") {
+		t.Fatalf("default SDK KV store does not use the resolved auth directory: %q", cpaCfg.EffectiveKVStorePath())
+	}
 }
 
 func TestConfigureManagementStaticPathSetsDefaultWhenUnset(t *testing.T) {
@@ -328,6 +331,8 @@ func TestCLIProxyServiceKeepsV8ManagementKeyInSyncWithCPARoutes(t *testing.T) {
 	t.Setenv("WRITABLE_PATH", "")
 	port := reserveLocalPort(t)
 	dir := t.TempDir()
+	// Match the Windows launcher's working directory for SDK relative-path reloads.
+	t.Chdir(dir)
 	path := filepath.Join(dir, "config.yaml")
 	content := fmt.Sprintf("config-version: 8\nserver: {host: '127.0.0.1', port: %d}\nmanagement: {secret-key: 'old-secret'}\noauth: {auth-dir: './auth'}\n", port)
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -361,6 +366,9 @@ func TestCLIProxyServiceKeepsV8ManagementKeyInSyncWithCPARoutes(t *testing.T) {
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
 	client := &http.Client{Timeout: 2 * time.Second}
 	waitForHTTPStatus(t, client, http.MethodGet, base+"/healthz", "", http.StatusOK)
+	if info, err := os.Stat(filepath.Join(dir, "auth", "kv.db")); err != nil || info.Size() == 0 {
+		t.Fatalf("SDK did not create its default KV store under the configured auth directory: %v", err)
+	}
 	request := func(method, route, key, body string) int {
 		t.Helper()
 		req, err := http.NewRequest(method, base+route, strings.NewReader(body))
@@ -378,7 +386,7 @@ func TestCLIProxyServiceKeepsV8ManagementKeyInSyncWithCPARoutes(t *testing.T) {
 		defer resp.Body.Close()
 		return resp.StatusCode
 	}
-	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage"} {
+	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage", "/v8/management/observability/requests/in-flight"} {
 		if status := request(http.MethodGet, route, "old-secret", ""); status != http.StatusOK {
 			t.Fatalf("GET %s with initial key: %d", route, status)
 		}
@@ -386,7 +394,7 @@ func TestCLIProxyServiceKeepsV8ManagementKeyInSyncWithCPARoutes(t *testing.T) {
 	if status := request(http.MethodPatch, "/v8/management/config/management/secret-key", "old-secret", `"new-secret"`); status != http.StatusOK {
 		t.Fatalf("PATCH management key: %d", status)
 	}
-	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage"} {
+	for _, route := range []string{"/v8/management/config", "/v8/management/cpa-pc/usage", "/v8/management/observability/requests/in-flight"} {
 		if status := request(http.MethodGet, route, "old-secret", ""); status != http.StatusUnauthorized {
 			t.Fatalf("GET %s accepted stale key: %d", route, status)
 		}
